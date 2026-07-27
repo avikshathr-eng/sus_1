@@ -1,0 +1,9 @@
+{
+  "appId": "com.avikshathr.sus",
+  "appName": "sus",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  }
+}

@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+
+# Env files — never commit real Supabase keys. .env.example stays tracked.
+.env
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Supabase CLI local cache
+supabase/.temp/
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Capacitor native projects — commit the projects themselves (they hold
+# signing config, icons, and native customizations that aren't otherwise
+# reproducible), but ignore their generated build artifacts.
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/.idea/
+android/*.iml
+android/app/*.iml
+
+ios/App/Pods/
+ios/App/output/
+ios/App/build/
+ios/App/DerivedData/
+ios/.build/
+*.xcuserstate
+xcuserdata/

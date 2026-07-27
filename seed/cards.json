@@ -1,0 +1,282 @@
+[
+  [
+    "He still texts his ex every Sunday, says it's just checking in.",
+    "loyalty",
+    false
+  ],
+  [
+    "She reads my messages at 3am and says she wasn't checking up on me.",
+    "trust",
+    false
+  ],
+  [
+    "He replies 'k' to texts but posts a new story every hour.",
+    "trust",
+    false
+  ],
+  [
+    "My roommate borrows my stuff and 'forgets' to ask, every week.",
+    "boundaries",
+    false
+  ],
+  [
+    "He split the bill on the first date, down to the exact rupee.",
+    "money",
+    false
+  ],
+  [
+    "My best friend only texts me when she needs a favor.",
+    "friendship",
+    false
+  ],
+  [
+    "My mom reads my texts, says it's her right since she pays my bill.",
+    "family",
+    false
+  ],
+  [
+    "He never apologizes first, even when he's clearly wrong.",
+    "honesty",
+    false
+  ],
+  [
+    "She still keeps every gift from her ex 'for sentimental reasons.'",
+    "loyalty",
+    false
+  ],
+  [
+    "My coworker takes credit for my ideas in every meeting.",
+    "work",
+    false
+  ],
+  [
+    "He wants the password to all my socials 'for trust.'",
+    "trust",
+    false
+  ],
+  [
+    "My in-laws want to pick where we live without asking us.",
+    "family",
+    false
+  ],
+  [
+    "She cancels plans last minute but gets upset if I make other ones.",
+    "friendship",
+    false
+  ],
+  [
+    "He 'forgot' his wallet on the third date in a row.",
+    "money",
+    false
+  ],
+  [
+    "My partner tracks every rupee I spend and asks for receipts.",
+    "money",
+    false
+  ],
+  [
+    "He goes silent for days after every small disagreement.",
+    "honesty",
+    false
+  ],
+  [
+    "She talks about me to mutual friends, then acts normal to my face.",
+    "honesty",
+    false
+  ],
+  [
+    "My boss messages me 'urgent' tasks at 11pm on weekends.",
+    "work",
+    false
+  ],
+  [
+    "He gets annoyed if I hang out with guy friends, has girl 'best friends' himself.",
+    "boundaries",
+    false
+  ],
+  [
+    "My friend takes forever to pay me back and never brings it up first.",
+    "money",
+    false
+  ],
+  [
+    "She love-bombed me with gifts in week one, now barely replies.",
+    "loyalty",
+    false
+  ],
+  [
+    "He compares me to his mother's cooking, constantly.",
+    "family",
+    false
+  ],
+  [
+    "My sister read my diary and still brings up what she found, years later.",
+    "family",
+    false
+  ],
+  [
+    "He wants to know my exact schedule every day, calls it 'just curious.'",
+    "boundaries",
+    false
+  ],
+  [
+    "She only compliments me when I'm doing worse than her.",
+    "friendship",
+    false
+  ],
+  [
+    "My date insisted on ordering for me without asking what I wanted.",
+    "boundaries",
+    false
+  ],
+  [
+    "He keeps a running tally of who paid for what, every single time.",
+    "money",
+    false
+  ],
+  [
+    "My roommate never buys groceries but eats everyone else's food.",
+    "money",
+    false
+  ],
+  [
+    "She talks over me in every group conversation, every time.",
+    "friendship",
+    false
+  ],
+  [
+    "He says he's 'not the jealous type' then interrogates me about every text.",
+    "trust",
+    false
+  ],
+  [
+    "My parents want my salary slips every month, I'm 27 and independent.",
+    "family",
+    false
+  ],
+  [
+    "He ghosted for three weeks, came back like nothing happened.",
+    "honesty",
+    false
+  ],
+  [
+    "My friend group has a chat I got removed from, no explanation.",
+    "friendship",
+    false
+  ],
+  [
+    "She never says sorry first, waits for me to cave every time.",
+    "honesty",
+    false
+  ],
+  [
+    "He wants to split the ring cost but expects my family to fund the wedding.",
+    "money",
+    false
+  ],
+  [
+    "My manager takes credit for the team's work in front of leadership.",
+    "work",
+    false
+  ],
+  [
+    "He checks who liked my posts and messages them if it's a guy.",
+    "trust",
+    false
+  ],
+  [
+    "She 'jokes' about my weight in front of our whole friend group.",
+    "friendship",
+    false
+  ],
+  [
+    "My partner wants a joint account before we're even engaged.",
+    "money",
+    false
+  ],
+  [
+    "He calls me 'dramatic' every time I bring up something that hurt me.",
+    "honesty",
+    false
+  ],
+  [
+    "My cousin only calls when she needs to borrow money.",
+    "family",
+    false
+  ],
+  [
+    "He wants to meet my parents after two weeks, already talks marriage.",
+    "loyalty",
+    false
+  ],
+  [
+    "She disappears for hours with no explanation, gets defensive if asked.",
+    "trust",
+    false
+  ],
+  [
+    "My coworker screenshots our DMs and shares them with the group.",
+    "work",
+    false
+  ],
+  [
+    "He says 'I'm not like your ex' unprompted, multiple times a week.",
+    "honesty",
+    false
+  ],
+  [
+    "My friend only remembers my birthday when I remind her first.",
+    "friendship",
+    false
+  ],
+  [
+    "He gets quiet and cold for hours if I disagree with him in public.",
+    "honesty",
+    false
+  ],
+  [
+    "She asked me to co-sign a loan for her 'business idea.'",
+    "money",
+    false
+  ],
+  [
+    "My dad compares my grades to my cousin's in front of every guest.",
+    "family",
+    false
+  ],
+  [
+    "He introduces me as his girlfriend but says 'no labels' to my face.",
+    "loyalty",
+    false
+  ],
+  [
+    "My friend cancels on me but shows up for everyone else, every time.",
+    "friendship",
+    false
+  ],
+  [
+    "He wants me to send my location 24/7 'for safety,' won't share his.",
+    "trust",
+    true
+  ],
+  [
+    "She shows up uninvited to places I mentioned, calls it a surprise.",
+    "boundaries",
+    true
+  ],
+  [
+    "He slowly stopped me from seeing my friends over a few months.",
+    "boundaries",
+    true
+  ],
+  [
+    "My partner reads through my phone every time I'm asleep.",
+    "trust",
+    true
+  ],
+  [
+    "He gets upset if I don't reply within minutes, calls it 'caring.'",
+    "boundaries",
+    true
+  ]
+]
