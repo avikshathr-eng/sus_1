@@ -18,12 +18,37 @@ export default function CrowdPicks({ onEditPost }) {
   const [myPosts, setMyPosts] = useState([])
   const [myPostsLoading, setMyPostsLoading] = useState(true)
 
+  // A card's result is a spoiler for the opinion you haven't formed yet —
+  // Crowd Picks only ever shows cards this device has personally swiped on
+  // (left or right), never the full public leaderboard. Also doubles as a
+  // small return-and-swipe-more incentive.
   useEffect(() => {
     async function load() {
       setLoading(true)
+      const device_id = getDeviceId()
+
+      const { data: votedRows, error: votedError } = await supabase
+        .from('votes')
+        .select('post_id')
+        .eq('device_id', device_id)
+
+      if (votedError) {
+        console.error('voted-history load failed', votedError)
+        setLoading(false)
+        return
+      }
+
+      const votedIds = (votedRows || []).map((v) => v.post_id)
+      if (votedIds.length === 0) {
+        setRows([])
+        setLoading(false)
+        return
+      }
+
       const { data, error } = await supabase
         .from('crowd_picks')
         .select('*')
+        .in('id', votedIds)
         .order('total_votes', { ascending: false })
         .limit(30)
 

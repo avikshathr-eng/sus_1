@@ -69,11 +69,26 @@ export default function CardStack({ onCategoriesChange, dragX }) {
 
   const loadPosts = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await supabase
-      .from('posts')
-      .select('*')
-      .eq('status', 'approved')
-      .limit(200)
+    const device_id = getDeviceId()
+
+    // A device should never be shown a card it has already voted on, no
+    // matter how many days/sessions later — fetch this device's own voting
+    // history first so it can be excluded from the pool query itself
+    // (cheaper than fetching everything and filtering client-side, and
+    // stays cheap as the seed pool grows into the thousands).
+    const { data: votedRows, error: votedError } = await supabase
+      .from('votes')
+      .select('post_id')
+      .eq('device_id', device_id)
+
+    if (votedError) console.error('voted-history load failed', votedError)
+    const votedIds = (votedRows || []).map((v) => v.post_id)
+
+    let query = supabase.from('posts').select('*').eq('status', 'approved').limit(2000)
+    if (votedIds.length > 0) {
+      query = query.not('id', 'in', `(${votedIds.join(',')})`)
+    }
+    const { data, error } = await query
 
     if (error) {
       console.error('load failed', error)
@@ -83,8 +98,8 @@ export default function CardStack({ onCategoriesChange, dragX }) {
 
     // Real people's submissions always queue ahead of the seed question
     // pool, so a fresh Spill actually gets seen soon instead of being
-    // buried in 150+ starter cards — each group is still shuffled on its
-    // own for variety.
+    // buried in the (much larger) starter-card pool — each group is still
+    // shuffled on its own for variety.
     const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5)
     const all = filterHidden(data || [])
     const userSubmitted = shuffle(all.filter((p) => p.source === 'user_submitted'))
