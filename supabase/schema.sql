@@ -9,9 +9,9 @@ create extension if not exists "pgcrypto";
 -- parent, roommate, anyone.
 create table posts (
   id uuid primary key default gen_random_uuid(),
-  text text not null check (char_length(text) between 5 and 90),
+  text text not null check (char_length(text) between 5 and 180),
   category text not null check (
-    category in ('loyalty','trust','honesty','boundaries','money','family','friendship','work','other')
+    category in ('relationship','friendship','career','family','other')
   ),
 
   -- Safety: flag posts that reference abuse/stalking/controlling behavior so
@@ -19,14 +19,32 @@ create table posts (
   -- default false for auto-approved user submissions.
   safety_flag boolean not null default false,
 
-  -- 'pending' | 'approved' | 'rejected'. User submissions that pass the
-  -- client-side moderation filter (src/lib/moderation.js) are inserted
-  -- directly as 'approved' for MVP speed. Anything can be flipped back to
-  -- 'rejected' by hand in the Supabase table editor to unpublish it.
-  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  -- 'pending' | 'approved' | 'rejected' | 'flagged'. User submissions that
+  -- pass the server-side moderation filter (submit-post) are inserted
+  -- directly as 'approved' for MVP speed. 'flagged' is for content that
+  -- slipped past automated screening but shouldn't be live — set it by hand
+  -- (or by a future automated check) to immediately pull a post out of the
+  -- feed (see the "read approved posts" policy below) without deleting it,
+  -- and the author sees it under Your Posts as "Needs an edit". Flip status
+  -- back to 'approved' in the table editor to return it to the stack, or to
+  -- 'rejected' to keep it down for good.
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected', 'flagged')),
+
+  -- Why a post was flagged — shown to the author under Your Posts so they
+  -- know what to fix before resubmitting. Null unless status = 'flagged'.
+  flag_reason text,
+  flagged_at timestamptz,
 
   source text default 'seed', -- 'seed' | 'user_submitted'
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+
+  -- The submitting device's anonymous id (same random UUID used for votes),
+  -- captured server-side in submit-post. Never displayed anywhere in the
+  -- UI — it exists only so a device can list/delete/view-status-of its own
+  -- submissions (see supabase/functions/my-posts and delete-post) and so
+  -- "hide posts from this account" can filter client-side. Null for seed
+  -- rows.
+  device_id text
 );
 
 create index posts_status_idx on posts (status);
@@ -55,6 +73,7 @@ create table reports (
   id uuid primary key default gen_random_uuid(),
   post_id uuid not null references posts(id) on delete cascade,
   device_id text not null,
+  reason text, -- category chosen in the report menu, e.g. 'harassment', 'spam'
   created_at timestamptz not null default now()
 );
 
@@ -87,7 +106,8 @@ select
   r.red_flag_count,
   r.relax_count,
   r.total_votes,
-  r.red_flag_pct
+  r.red_flag_pct,
+  p.device_id -- internal use only (hide-this-account filtering) — never rendered
 from posts p
 join post_results r on r.post_id = p.id
 where p.status = 'approved' and r.total_votes > 0;

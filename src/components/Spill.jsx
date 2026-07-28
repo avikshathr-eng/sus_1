@@ -1,13 +1,26 @@
-import { useState } from 'react'
-import { supabase } from '../lib/supabase'
-import { TAGS } from '../lib/tags'
-import { validateSubmission } from '../lib/moderation'
+import { useEffect, useState } from 'react'
+import { supabase, getDeviceId } from '../lib/supabase'
+import { TAGS, tagStyleSolid, tagStyleOutline } from '../lib/tags'
+import { validateSubmission, MAX_CONFESSION_LENGTH } from '../lib/moderation'
+import { addMyPostId } from '../lib/myPosts'
 
-export default function Spill() {
-  const [text, setText] = useState('')
-  const [category, setCategory] = useState('other')
+// `draft` (from App.jsx) pre-fills this form when arriving via "Edit post"
+// on a flagged submission in Your Posts — editing it here and sending
+// creates a fresh, separate submission rather than mutating the old one, so
+// no update-in-place backend path was needed for that flow.
+export default function Spill({ draft, onDraftConsumed }) {
+  const [text, setText] = useState(draft?.text ?? '')
+  const [category, setCategory] = useState(draft?.category ?? 'other')
   const [error, setError] = useState(null)
   const [status, setStatus] = useState('idle') // idle | submitting | done
+
+  useEffect(() => {
+    if (!draft) return
+    setText(draft.text ?? '')
+    setCategory(draft.category ?? 'other')
+    onDraftConsumed?.()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draft])
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -27,7 +40,7 @@ export default function Spill() {
     setStatus('submitting')
 
     const { data, error: fnError } = await supabase.functions.invoke('submit-post', {
-      body: { text: text.trim(), category },
+      body: { text: text.trim(), category, device_id: getDeviceId() },
     })
 
     if (fnError || data?.error) {
@@ -36,6 +49,8 @@ export default function Spill() {
       return
     }
 
+    if (data?.post?.id) addMyPostId(data.post.id)
+
     setStatus('done')
     setText('')
   }
@@ -43,50 +58,57 @@ export default function Spill() {
   if (status === 'done') {
     return (
       <div className="spill-tab">
-        <h2>Sent 🎉</h2>
-        <p className="muted-text">It's already live in the feed. Thanks for spilling.</p>
-        <button className="btn-primary" onClick={() => setStatus('idle')}>Spill another</button>
+        <h1 className="feed-title">Spill it<span className="dot">.</span></h1>
+        <p className="feed-meta">Sent 🎉</p>
+        <div className="spill-card spill-card-done">
+          <p className="muted-text">It's already live in the feed. Thanks for spilling.</p>
+          <button className="btn-primary full" onClick={() => setStatus('idle')}>Spill another</button>
+        </div>
       </div>
     )
   }
 
   return (
-    <form className="spill-tab" onSubmit={handleSubmit}>
-      <h2>Spill it 🤝</h2>
-      <p className="muted-text">One sentence, no names. Totally anonymous — the crowd's got you.</p>
+    <div className="spill-tab">
+      <h1 className="feed-title">Spill it<span className="dot">.</span></h1>
+      <p className="feed-meta">One sentence. No names. Posted without your name.</p>
 
-      <textarea
-        rows={3}
-        maxLength={90}
-        placeholder="He still texts his ex..."
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        required
-      />
-      <div className="char-row">
-        <span className="muted-text small">🔒 anonymous, always</span>
-        <span className="muted-text small">{text.length}/90</span>
-      </div>
+      <form className="spill-card" onSubmit={handleSubmit}>
+        <p className="muted-text small spill-helper">Describe the behavior—not the person.</p>
+        <textarea
+          rows={4}
+          maxLength={MAX_CONFESSION_LENGTH}
+          placeholder="He still texts his ex..."
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          required
+        />
+        <div className="char-row">
+          <span className="muted-text small">🔒 No name attached.</span>
+          <span className="muted-text small">{text.length}/{MAX_CONFESSION_LENGTH}</span>
+        </div>
 
-      {error && <p className="form-error">{error}</p>}
+        {error && <p className="form-error">{error}</p>}
 
-      <p className="muted-text small">What's it about?</p>
-      <div className="tag-picker">
-        {TAGS.map((t) => (
-          <button
-            type="button"
-            key={t.id}
-            className={`tag-pill ${category === t.id ? 'tag-pill-active' : ''}`}
-            onClick={() => setCategory(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+        <p className="muted-text small">Pick a category</p>
+        <div className="tag-picker">
+          {TAGS.map((t) => (
+            <button
+              type="button"
+              key={t.id}
+              className={`tag-pill ${category === t.id ? 'tag-pill-active' : ''}`}
+              style={category === t.id ? tagStyleSolid(t.id) : tagStyleOutline(t.id)}
+              onClick={() => setCategory(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
 
-      <button className="btn-primary full" type="submit" disabled={status === 'submitting'}>
-        {status === 'submitting' ? 'Sending…' : 'Spill it'}
-      </button>
-    </form>
+        <button className="btn-primary full" type="submit" disabled={status === 'submitting'}>
+          {status === 'submitting' ? 'Sending…' : 'Spill it'}
+        </button>
+      </form>
+    </div>
   )
 }

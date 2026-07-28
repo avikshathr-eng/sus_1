@@ -49,8 +49,8 @@ export default function OnboardingSwipeDemo() {
           >
             <span className="card-tag">Try it</span>
             <p className="card-text">{current.text}</p>
-            <motion.div className="stamp stamp-red" style={{ opacity: redOpacity }}>🚩</motion.div>
-            <motion.div className="stamp stamp-relax" style={{ opacity: relaxOpacity }}>😌</motion.div>
+            <motion.div className="demo-stamp demo-stamp-red" style={{ opacity: redOpacity }}>🚩</motion.div>
+            <motion.div className="demo-stamp demo-stamp-relax" style={{ opacity: relaxOpacity }}>😌</motion.div>
           </motion.div>
         ) : (
           <motion.div

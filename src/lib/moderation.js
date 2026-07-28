@@ -12,6 +12,13 @@ import { Filter } from 'bad-words'
 
 const filter = new Filter()
 
+// The one place this number is defined client-side — the visible counter in
+// Spill.jsx and this check must always agree. The submit-post Edge Function
+// (supabase/functions/submit-post/index.ts) re-declares the same value
+// server-side, since Deno functions can't import from this file — see the
+// comment there if this ever changes.
+export const MAX_CONFESSION_LENGTH = 180
+
 const PHONE_REGEX = /(\+?\d[\d\s-]{8,}\d)/
 const EMAIL_REGEX = /[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}/
 const HANDLE_REGEX = /[@#][\w.]{2,}/
@@ -23,8 +30,8 @@ export function validateSubmission(text) {
   if (trimmed.length < 5) {
     return { ok: false, reason: 'A little more detail, please.' }
   }
-  if (trimmed.length > 90) {
-    return { ok: false, reason: 'Keep it to one sentence — 90 characters max.' }
+  if (trimmed.length > MAX_CONFESSION_LENGTH) {
+    return { ok: false, reason: `Keep it under ${MAX_CONFESSION_LENGTH} characters.` }
   }
   if (PHONE_REGEX.test(trimmed)) {
     return { ok: false, reason: 'No phone numbers — keep it anonymous.' }

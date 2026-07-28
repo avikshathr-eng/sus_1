@@ -18,8 +18,13 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { Filter } from 'npm:bad-words@4.0.0'
 
 const ALLOWED_CATEGORIES = [
-  'loyalty', 'trust', 'honesty', 'boundaries', 'money', 'family', 'friendship', 'work', 'other',
+  'relationship', 'friendship', 'career', 'family', 'other',
 ]
+
+// Must match src/lib/moderation.js's MAX_CONFESSION_LENGTH — Deno functions
+// can't import from the frontend, so this is the one place it's duplicated
+// rather than centralized.
+const MAX_CONFESSION_LENGTH = 180
 
 const PHONE_REGEX = /(\+?\d[\d\s-]{8,}\d)/
 const EMAIL_REGEX = /[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}/
@@ -40,7 +45,7 @@ function validate(text: string, category: string) {
     return { ok: false, reason: 'Invalid category.' }
   }
   if (trimmed.length < 5) return { ok: false, reason: 'A little more detail, please.' }
-  if (trimmed.length > 90) return { ok: false, reason: 'Keep it to one sentence — 90 characters max.' }
+  if (trimmed.length > MAX_CONFESSION_LENGTH) return { ok: false, reason: `Keep it under ${MAX_CONFESSION_LENGTH} characters.` }
   if (PHONE_REGEX.test(trimmed)) return { ok: false, reason: 'No phone numbers — keep it anonymous.' }
   if (EMAIL_REGEX.test(trimmed)) return { ok: false, reason: 'No email addresses — keep it anonymous.' }
   if (HANDLE_REGEX.test(trimmed)) return { ok: false, reason: 'No @handles or hashtags — keep it anonymous.' }
@@ -56,7 +61,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { text, category } = await req.json()
+    const { text, category, device_id } = await req.json()
     const check = validate(text, category)
 
     if (!check.ok) {
@@ -73,7 +78,13 @@ Deno.serve(async (req) => {
 
     const { data, error } = await supabaseAdmin
       .from('posts')
-      .insert({ text: check.text, category, status: 'approved', source: 'user_submitted' })
+      .insert({
+        text: check.text,
+        category,
+        status: 'approved',
+        source: 'user_submitted',
+        device_id: typeof device_id === 'string' ? device_id.slice(0, 128) : null,
+      })
       .select()
       .single()
 
