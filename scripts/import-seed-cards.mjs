@@ -40,15 +40,18 @@ const HANDLE_REGEX = /[@#][\w.]{2,}/
 const URL_REGEX = /(https?:\/\/|www\.)\S+/i
 
 const CATEGORY_KEYWORDS = {
-  relationship: ['partner', 'boyfriend', 'girlfriend', 'husband', 'wife', 'dating', ' ex ', "ex'", 'ex,', 'ex.', 'fianc', 'romantic', 'crush', 'girlfriend', 'boyfriend'],
+  // Checked in this order — family beats relationship (an in-law mention
+  // should count as family even in a sentence that's otherwise about a
+  // partner), relationship beats the more generic friendship/career lists.
   family: ['mom', 'dad', 'mother', 'father', 'parent', 'sister', 'brother', 'sibling', 'in-law', 'in law', 'cousin', 'aunt', 'uncle', 'grandma', 'grandpa', 'grandmother', 'grandfather', 'family'],
+  relationship: ['partner', 'boyfriend', 'girlfriend', 'husband', 'wife', 'dating', ' ex ', "ex'", 'ex,', 'ex.', 'fianc', 'romantic', 'crush', 'marry', 'married', 'marriage', 'engage', 'wedding', 'date '],
   career: ['boss', 'coworker', 'co-worker', 'colleague', 'job', 'work', 'office', 'manager', 'salary', 'interview', 'promotion', 'client', 'workplace'],
   friendship: ['friend', 'roommate', 'room-mate', 'bestie', 'buddy'],
 }
 
 function guessCategory(text) {
   const lower = ` ${text.toLowerCase()} `
-  for (const cat of ['relationship', 'family', 'career', 'friendship']) {
+  for (const cat of ['family', 'relationship', 'career', 'friendship']) {
     if (CATEGORY_KEYWORDS[cat].some((kw) => lower.includes(kw))) return cat
   }
   return 'other'
