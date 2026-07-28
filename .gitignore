@@ -44,3 +44,6 @@ ios/App/DerivedData/
 ios/.build/
 *.xcuserstate
 xcuserdata/
+
+.vercel
+.env*
