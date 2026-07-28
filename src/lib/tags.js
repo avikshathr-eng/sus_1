@@ -5,7 +5,7 @@
 // four brand colors (lavender/peach/mint/pink). With five categories, one
 // color repeats (index 4 % 4 === 0) — that's intentional, not a bug: the
 // palette is fixed and colors are never invented or derived.
-const PALETTE = ['#9CADFF', '#FECC8F', '#82D7B8', '#F694C3']
+export const PALETTE = ['#9CADFF', '#FECC8F', '#82D7B8', '#F694C3']
 
 export const TAGS = [
   { id: 'relationship', label: 'Relationship' },
