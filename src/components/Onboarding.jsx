@@ -1,11 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import { ArrowRight } from 'lucide-react'
-import { PALETTE } from '../lib/tags'
 import { usePrefersReducedMotion } from '../lib/useReducedMotion'
-import ConfessionCards from './onboarding/ConfessionCards'
-import CrowdVerdict from './onboarding/CrowdVerdict'
-import AskSusCard from './onboarding/AskSusCard'
 
 // Matches --ink in styles.css — hardcoded here (not read from the CSS var)
 // because framer-motion's color interpolation needs a literal color value
@@ -20,13 +16,6 @@ const INACTIVE_DOT = 'rgba(34,30,26,0.16)'
 // 20-25% band.
 const DISTANCE_RATIO = 0.22
 const VELOCITY_THRESHOLD = 500
-// How long after triggering a page transition before this screen's own
-// "arrival" flourishes (the verdict count-up, the Ask-sus card's spring-in,
-// the CTA reveal) fire. A fixed delay rather than trusting framer's
-// animation-complete callback — same reasoning CardStack.jsx documents for
-// its own ENTRANCE_DURATION: that callback isn't reliable for a value
-// that's simultaneously driven by an active drag gesture.
-const SETTLE_DELAY_MS = 380
 // Must match `.app, .onboarding, .gate-screen { max-width: 480px }` in
 // styles.css — the true hard ceiling on this container's width. Used only
 // as a sanity clamp on the ResizeObserver measurement below: on first
@@ -36,28 +25,34 @@ const SETTLE_DELAY_MS = 380
 // fixes the symptom regardless of the exact browser-timing cause.
 const MAX_APP_WIDTH = 480
 
+// Background colors + illustrations sampled/cropped directly from the
+// user's own reference designs (not the app's global category PALETTE —
+// this screen intentionally uses its own, more saturated set to match
+// those references exactly). Each PNG has its own flat background
+// chroma-keyed to transparent, so it sits directly on this animated
+// background with no visible edge/seam as the color interpolates during
+// a drag between screens.
 const SCREENS = [
   {
     id: 'opinions',
-    bg: PALETTE[0], // lavender
-    label: 'Swipe · Judge · Repeat',
-    headline: <>Everyone has opinions.</>,
-    support: "Let's hear yours.",
-    Visual: ConfessionCards,
+    bg: '#98A0ED', // lavender
+    headline: <>We all have opinions.</>,
+    support: 'Real dilemmas, real people. Judge, swipe, repeat.',
+    image: '/onboarding-1.png',
   },
   {
     id: 'verdict',
-    bg: PALETTE[3], // pink-red
+    bg: '#E79CBD', // pink
     headline: <>Every swipe counts.</>,
-    support: 'Thousands of tiny judgments become one answer.',
-    Visual: CrowdVerdict,
+    support: 'Hundreds of tiny opinions become one answer.',
+    image: '/onboarding-2.png',
   },
   {
     id: 'ask',
-    bg: PALETTE[1], // butter-yellow
-    headline: <>Got your own story?</>,
-    support: 'Ask Sus. Let the crowd weigh in.',
-    Visual: AskSusCard,
+    bg: '#FDCB8C', // peach
+    headline: <>Got your own story?<br />Ask SUS.</>,
+    support: 'Share anonymously. Get real opinions. Help the community.',
+    image: '/onboarding-3.png',
     isLast: true,
   },
 ]
@@ -68,7 +63,7 @@ function clampIndex(i) {
 
 // A dedicated component (not inlined in a .map()) so its useTransform calls
 // respect React's rules of hooks — see the identical reasoning in
-// CrowdVerdict.jsx's VerdictDot.
+// OnboardingIllustration below.
 function ProgressDot({ i, pageProgress }) {
   const width = useTransform(pageProgress, [i - 1, i, i + 1], [6, 20, 6], { clamp: true })
   const background = useTransform(pageProgress, [i - 1, i, i + 1], [INACTIVE_DOT, INK, INACTIVE_DOT], { clamp: true })
@@ -81,6 +76,28 @@ function ProgressDot({ i, pageProgress }) {
   )
 }
 
+// Its own component (not inlined in the .map() below) so its useTransform
+// calls follow React's rules of hooks — a fixed-length list mapped inline
+// would call hooks in a loop, which only works today by accident of SCREENS
+// never changing length.
+function OnboardingIllustration({ src, index, pageProgress, reducedMotion }) {
+  const visibility = useTransform(pageProgress, [index - 1, index, index + 1], [0, 1, 0], { clamp: true })
+  const scale = useTransform(pageProgress, [index - 1, index, index + 1], [0.92, 1, 0.92], { clamp: true })
+  const parallaxX = useTransform(
+    pageProgress,
+    [index - 1, index, index + 1],
+    reducedMotion ? [0, 0, 0] : [26, 0, -26],
+    { clamp: true }
+  )
+  return (
+    <motion.div className="onboard-illustration-wrap" style={{ opacity: visibility, scale, x: parallaxX }}>
+      <div className={reducedMotion ? undefined : 'onboard-illustration-float'}>
+        <img src={src} alt="" className="onboard-illustration-img" draggable={false} />
+      </div>
+    </motion.div>
+  )
+}
+
 export default function Onboarding({ onDone }) {
   const reducedMotion = usePrefersReducedMotion()
   const viewportRef = useRef(null)
@@ -88,22 +105,7 @@ export default function Onboarding({ onDone }) {
     () => Math.min(typeof window !== 'undefined' ? window.innerWidth : 390, MAX_APP_WIDTH)
   )
   const [index, setIndex] = useState(0)
-  // Which screen has fully "arrived" — see SETTLE_DELAY_MS above. Distinct
-  // from `index`, which updates the instant a transition is triggered.
-  const [settledIndex, setSettledIndex] = useState(0)
   const trackX = useMotionValue(0)
-  const settleTimeoutRef = useRef(null)
-  // Screen 3's entrance flourishes (card spring-in, the two response chips)
-  // are triggered from here, in goToIndex, rather than from a useEffect
-  // inside AskSusCard itself — verified by direct testing that an
-  // animate() call on a motion value made from a child's own useEffect
-  // does not reliably restart/complete this deep inside the draggable
-  // pager track, while animate() called from this exact function (already
-  // used for the page-snap spring itself) does. Passed down as plain
-  // motion-value props; ConfessionCards/CrowdVerdict simply don't use them.
-  const askCardEntrance = useMotionValue(0)
-  const askFlagEntrance = useMotionValue(0)
-  const askRelaxEntrance = useMotionValue(0)
 
   useEffect(() => {
     const el = viewportRef.current
@@ -127,8 +129,6 @@ export default function Onboarding({ onDone }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewportWidth])
 
-  useEffect(() => () => clearTimeout(settleTimeoutRef.current), [])
-
   // 0 at page 1, 1 at page 2, 2 at page 3 — continuous and fractional while
   // dragging, so every screen's decorative motion and the progress dots can
   // derive straight from the same live gesture instead of duplicating drag
@@ -143,29 +143,10 @@ export default function Onboarding({ onDone }) {
   function goToIndex(target) {
     const clamped = clampIndex(target)
     setIndex(clamped)
-    clearTimeout(settleTimeoutRef.current)
     animate(trackX, -clamped * viewportWidth, reducedMotion
       ? { duration: 0.2, ease: 'easeOut' }
       : { type: 'spring', stiffness: 300, damping: 32 }
     )
-    settleTimeoutRef.current = setTimeout(() => setSettledIndex(clamped), SETTLE_DELAY_MS)
-
-    if (clamped === SCREENS.length - 1) {
-      const spring = { type: 'spring', stiffness: 320, damping: 28 }
-      if (reducedMotion) {
-        askCardEntrance.set(1)
-        askFlagEntrance.set(1)
-        askRelaxEntrance.set(1)
-      } else {
-        animate(askCardEntrance, 1, spring)
-        animate(askFlagEntrance, 1, { ...spring, delay: 0.15 })
-        animate(askRelaxEntrance, 1, { ...spring, delay: 0.35 })
-      }
-    } else {
-      askCardEntrance.set(0)
-      askFlagEntrance.set(0)
-      askRelaxEntrance.set(0)
-    }
   }
 
   // Mirrors SwipeCard.jsx's own handleDragEnd exactly: commit decision is
@@ -213,16 +194,8 @@ export default function Onboarding({ onDone }) {
           {SCREENS.map((s, i) => (
             <div className="onboard-page" key={s.id} style={{ width: viewportWidth }}>
               <div className="onboard-visual">
-                <s.Visual
-                  pageProgress={pageProgress}
-                  active={settledIndex === i}
-                  reducedMotion={reducedMotion}
-                  cardEntrance={askCardEntrance}
-                  flagEntrance={askFlagEntrance}
-                  relaxEntrance={askRelaxEntrance}
-                />
+                <OnboardingIllustration src={s.image} index={i} pageProgress={pageProgress} reducedMotion={reducedMotion} />
               </div>
-              {s.label && <p className="onboard-label">{s.label}</p>}
               <h1 className="onboard-headline">{s.headline}</h1>
               <p className="onboard-support">{s.support}</p>
             </div>

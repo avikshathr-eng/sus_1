@@ -501,16 +501,7 @@ body {
   overflow-y: auto;
 }
 
-.onboard-visual { position: relative; width: 100%; min-height: 300px; display: flex; align-items: center; justify-content: center; margin-bottom: 4px; flex-shrink: 0; }
-.onboard-label {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink);
-  opacity: 0.55;
-  margin: 0 0 10px;
-}
+.onboard-visual { position: relative; width: 100%; min-height: 260px; display: flex; align-items: center; justify-content: center; margin-bottom: 4px; flex-shrink: 0; }
 .onboard-headline {
   font-family: var(--font-display);
   font-weight: 600;
@@ -553,195 +544,28 @@ body {
   width: 100%;
 }
 
-/* Screen 1 — confession cards */
-/* The two cards are offset vertically enough (134px) that their text bands
-   never occupy the same rows — only their outer padding/corner is allowed
-   to overlap. A wide horizontal overlap is fine and reads as "tilted
-   stack"; a vertical one would print card B's white background straight
-   over card A's words.
-   Each card is two nested elements: the outer .onboard-confess-card
-   (motion.div) carries the drag-driven parallax (x/rotate, written every
-   frame by framer while dragging); the inner .onboard-confess-card-inner
-   carries a separate, always-on CSS idle float. Both would fight over
-   `transform` on one element — nesting lets them compose instead. */
-.onboard-confess-wrap { position: relative; width: 100%; max-width: 320px; height: 300px; }
-.onboard-confess-card { position: absolute; width: 240px; }
-.onboard-confess-card-a { top: 0; left: 4px; z-index: 1; }
-.onboard-confess-card-b { top: 134px; right: 4px; left: auto; z-index: 2; }
-.onboard-confess-card-inner {
-  background: var(--surface);
-  border-radius: 28px;
-  padding: 20px 20px 24px;
-  box-shadow: 0 30px 50px -20px rgba(40,30,15,0.22), 0 6px 14px -6px rgba(40,30,15,0.1);
-  text-align: left;
-}
-.onboard-confess-float-a { animation: onboardCardFloatA 4.8s ease-in-out infinite; }
-.onboard-confess-float-b { animation: onboardCardFloatB 5.6s ease-in-out infinite; animation-delay: -1.2s; }
-.onboard-confess-tag { margin-bottom: 12px; }
-.onboard-confess-text {
-  font-family: var(--font-display);
-  font-size: 16px;
-  font-weight: 500;
-  color: var(--ink);
-  line-height: 1.42;
-  margin: 0;
-}
+/* Illustrations — cropped directly from the user's own reference designs
+   (flat vector character art), not built as SVG/CSS compositions. Each
+   source PNG has its own flat background chroma-keyed to transparent
+   (see the note on SCREENS in Onboarding.jsx), so the artwork sits
+   directly on this screen's animated background with no card/frame and
+   no visible edge as the color interpolates during a drag between
+   screens. The outer .onboard-illustration-wrap carries the drag-driven
+   parallax/opacity/scale (written every frame by framer); the inner
+   .onboard-illustration-float carries a separate, always-on CSS idle
+   float — the same two-layer split used everywhere else in this app to
+   combine a framer transform with a CSS-keyframe transform without the
+   two fighting over one element's `transform` property. */
+.onboard-illustration-wrap { width: 100%; display: flex; align-items: center; justify-content: center; }
+.onboard-illustration-float { animation: onboardIllustrationFloat 5.2s ease-in-out infinite; }
+.onboard-illustration-img { width: 100%; max-width: 320px; height: auto; display: block; user-select: none; }
 
-/* Screen 2 — crowd verdict */
-/* One community ring: the crowd sits directly ON this circle (dots are
-   positioned at its radius), so it reads as the structure they're arranged
-   on, not a decorative orbit trail. The whole layer (ring + dots) rotates
-   together, extremely slowly, as one group. */
-.onboard-verdict-wrap { position: relative; width: 320px; height: 320px; }
-.onboard-verdict-spin { position: absolute; inset: 0; width: 100%; height: 100%; animation: onboardOrbitSpin 90s linear infinite; }
-.onboard-verdict-ring-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-.onboard-verdict-ring-path { fill: none; stroke: rgba(34,30,26,0.16); stroke-width: 1.5; }
-.onboard-verdict-dot {
-  position: absolute;
-  border-radius: 50%;
-  pointer-events: none;
-  margin-left: -3px;
-  margin-top: -3px;
-  animation: onboardDotPulse 3.2s ease-in-out infinite;
-}
-/* Plain CSS positioning only — no framer motion values on this element.
-   See the comment in CrowdVerdict.jsx: a motion value here would silently
-   eat the translate(-50%,-50%) that centers it. */
-.onboard-verdict-center {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 148px;
-  height: 148px;
-}
-.onboard-verdict-badge-motion { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
-.onboard-verdict-badge {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: onboardBadgeBreathe 4.2s ease-in-out infinite;
-}
-.onboard-verdict-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
-.onboard-verdict-ring-track { fill: #ffffff; stroke: rgba(34,30,26,0.08); stroke-width: 6; }
-.onboard-verdict-ring-fill { fill: none; stroke: var(--flag); stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset 80ms linear; }
-.onboard-verdict-text { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.onboard-verdict-primary { font-family: var(--font-display); font-size: 26px; font-weight: 600; color: var(--ink); line-height: 1; }
-.onboard-verdict-label { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; display: block; margin-top: 3px; }
-.onboard-verdict-secondary { font-size: 12px; font-weight: 600; color: var(--ink); opacity: 0.55; }
-
-/* Screen 3 — Ask sus. */
-.onboard-ask-wrap { position: relative; width: 100%; max-width: 320px; height: 320px; display: flex; align-items: center; justify-content: center; }
-.onboard-ask-glow {
-  position: absolute;
-  width: 270px;
-  height: 270px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(254,204,143,0.65) 0%, rgba(254,204,143,0) 70%);
-  filter: blur(2px);
-}
-/* Small huddle of crowd dots sitting behind/beneath the card — a cluster,
-   not individually-scattered decoration, so it reads as "the crowd is
-   here, about to respond" rather than confetti. */
-.onboard-ask-crowd { position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%); width: 120px; height: 34px; }
-.onboard-ask-crowd-dot {
-  position: absolute;
-  bottom: 0;
-  border-radius: 50%;
-  animation: onboardDotPulse 3s ease-in-out infinite;
-}
-.onboard-ask-card-outer { position: relative; }
-.onboard-ask-card {
-  position: relative;
-  width: 266px;
-  background: var(--surface);
-  border-radius: 32px;
-  padding: 26px 22px;
-  box-shadow: 0 30px 50px -20px rgba(40,30,15,0.24), 0 6px 14px -6px rgba(40,30,15,0.1);
-  text-align: left;
-  animation: onboardCardFloatA 5.2s ease-in-out infinite;
-}
-.onboard-ask-anon {
-  display: inline-block;
-  background: rgba(0,0,0,0.04);
-  color: var(--ink);
-  font-size: 11px;
-  font-weight: 600;
-  padding: 5px 10px;
-  border-radius: 100px;
-  margin-bottom: 14px;
-}
-.onboard-ask-placeholder {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: 17px;
-  color: var(--ink);
-  opacity: 0.5;
-  line-height: 1.4;
-  margin: 0;
-}
-.onboard-ask-cursor { font-style: normal; opacity: 1; animation: onboardCursorBlink 1.1s step-end infinite; }
-
-/* Response chips — emerge from the crowd cluster, one after the other,
-   to make "you submit, the crowd responds" legible at a glance. Red Flag
-   reuses the app's own --flag pink (already the app-wide association for
-   that verdict); Relax is rendered as a neutral black/white outline chip
-   rather than the app's mint --relax, since onboarding's palette is
-   deliberately restricted to lavender/pink/butter-yellow/ink/white only. */
-.onboard-ask-chip {
-  position: absolute;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  padding: 7px 13px;
-  border-radius: 100px;
-  white-space: nowrap;
-}
-/* Positioned relative to .onboard-ask-wrap (320px), not the narrower
-   266px card — the card sits centered with ~27px margin on each side, so
-   left/right here are chosen to just clear that margin and peek out from
-   behind the card's corners, not to align with the card's own edges. */
-/* Sit clearly below the card's own bottom edge (not overlapping it) so
-   they never get painted over by the card, which comes later in DOM
-   order — reads as "emerging between the card and the crowd cluster"
-   rather than pinned to the card's corner. */
-.onboard-ask-chip-flag { background: var(--flag); color: #000000; bottom: 62px; left: 14px; }
-.onboard-ask-chip-relax { background: #ffffff; color: var(--ink); border: 1.5px solid var(--ink); bottom: 40px; right: 14px; }
-
-@keyframes onboardCardFloatA {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-3px) rotate(0.6deg); }
-}
-@keyframes onboardCardFloatB {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(3px) rotate(-0.5deg); }
-}
-@keyframes onboardDotPulse {
-  0%, 100% { opacity: 0.55; transform: scale(0.9); }
-  50% { opacity: 1; transform: scale(1); }
-}
-@keyframes onboardBadgeBreathe {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.02); }
-}
-@keyframes onboardOrbitSpin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-@keyframes onboardCursorBlink {
-  0%, 50% { opacity: 1; }
-  50.01%, 100% { opacity: 0; }
+@keyframes onboardIllustrationFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .onboard-verdict-dot, .onboard-verdict-spin, .onboard-ask-cursor,
-  .onboard-confess-float-a, .onboard-confess-float-b, .onboard-verdict-badge,
-  .onboard-ask-card, .onboard-ask-crowd-dot {
-    animation: none;
-  }
-  .onboard-ask-cursor { opacity: 1; }
+  .onboard-illustration-float { animation: none; }
 }
 
 /* ---------- Age gate / blocked ---------- */
