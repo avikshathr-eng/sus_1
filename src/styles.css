@@ -466,6 +466,16 @@ body {
      never fought over between CSS and JS. */
   display: flex;
   cursor: grab;
+  /* .onboard-viewport already declares pan-y, but that's the non-draggable
+     ancestor — this absolutely-positioned track (3x viewport width) is what
+     actually receives the touchstart. Without its own touch-action, real
+     touch browsers can still hand the horizontal gesture to native scroll
+     heuristics mid-drag (background/x update from the pointermove framer
+     already saw, then the release never reaches onDragEnd cleanly) instead
+     of reliably ceding horizontal control to framer's pointer handling. */
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
 }
 .onboard-page {
   flex-shrink: 0;
