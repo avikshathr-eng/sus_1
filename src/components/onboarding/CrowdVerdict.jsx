@@ -8,18 +8,29 @@ const RED_PCT = 72
 // lavender / pink-red / butter-yellow / ink / white only, no green.
 const DOT_COLORS = [PALETTE[0], PALETTE[3], PALETTE[1], '#221e1a']
 
-// Deterministic ring of small profile marks around the center — angle in
-// degrees, radius in px from center, size in px. Two loose "rings" rather
-// than one, so it reads as a crowd, not a clock face.
-const DOTS = [0, 40, 80, 120, 160, 200, 240, 280, 320].map((angle, i) => ({
-  angle,
-  radius: i % 2 === 0 ? 96 : 122,
-  size: i % 3 === 0 ? 11 : 8,
-  color: DOT_COLORS[i % DOT_COLORS.length],
-  floatDelay: (i * 0.35).toFixed(2),
-}))
+const WRAP = 320
+const CENTER = WRAP / 2
+const RING_R = 132
+const DOT_COUNT = 26
 
-const RING_RADIUS = 58
+// One ring of small, mostly-uniform dots the crowd sits ON (radius jitter
+// is tiny — organic, not a perfectly robotic gear-tooth spacing, but never
+// enough to read as "planets at different orbits" the way two distinct
+// radii used to). Deterministic, not random, so layout doesn't reshuffle
+// between renders.
+const DOTS = Array.from({ length: DOT_COUNT }, (_, i) => {
+  const angle = (360 / DOT_COUNT) * i
+  const jitter = (i % 5) - 2 // -2..2
+  return {
+    angle,
+    radius: RING_R + jitter * 2,
+    size: 6 + (i % 3), // 6-8px, small and mostly uniform
+    color: DOT_COLORS[i % DOT_COLORS.length],
+    pulseDelay: ((i % 8) * 0.28).toFixed(2),
+  }
+})
+
+const RING_RADIUS = 62
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS
 
 // Counts 0 -> target once the screen becomes active (settled, not mid-drag)
@@ -51,8 +62,8 @@ function useCountUp(target, active, reducedMotion) {
 // mapped inline would call hooks in a loop, which works today only by
 // accident of DOTS never changing length.
 function VerdictDot({ d, x, y, funnel, visibility, scale, reducedMotion }) {
-  const collapseX = useTransform(funnel, [0, 1], [0, 140 - x])
-  const collapseY = useTransform(funnel, [0, 1], [0, 140 - y])
+  const collapseX = useTransform(funnel, [0, 1], [0, CENTER - x])
+  const collapseY = useTransform(funnel, [0, 1], [0, CENTER - y])
   return (
     <motion.span
       className="onboard-verdict-dot"
@@ -66,7 +77,7 @@ function VerdictDot({ d, x, y, funnel, visibility, scale, reducedMotion }) {
         scale,
         x: collapseX,
         y: collapseY,
-        animationDelay: reducedMotion ? undefined : `${d.floatDelay}s`,
+        animationDelay: reducedMotion ? undefined : `${d.pulseDelay}s`,
       }}
     />
   )
@@ -78,7 +89,7 @@ export default function CrowdVerdict({ pageProgress, active, reducedMotion }) {
   const visibility = useTransform(pageProgress, [0, 1, 2], reducedMotion ? [1, 1, 1] : [0, 1, 0])
   const scale = useTransform(pageProgress, [0, 1, 2], reducedMotion ? [1, 1, 1] : [0.85, 1, 0.85])
   // Only engages on the forward half (heading toward screen 3) — the crowd
-  // "funnels" inward rather than just fading.
+  // funnels inward rather than just fading.
   const funnel = useTransform(pageProgress, [1, 2], [0, 1], { clamp: true })
 
   const redDisplay = useCountUp(RED_PCT, active, reducedMotion)
@@ -86,49 +97,61 @@ export default function CrowdVerdict({ pageProgress, active, reducedMotion }) {
 
   return (
     <div className="onboard-verdict-wrap" aria-hidden="true">
-      <motion.svg
-        className="onboard-verdict-orbits"
-        viewBox="0 0 280 280"
-        style={{ opacity: visibility }}
-      >
-        <circle cx="140" cy="140" r="96" className="onboard-orbit-line" />
-        <circle cx="140" cy="140" r="122" className="onboard-orbit-line" />
-      </motion.svg>
-
-      {DOTS.map((d, i) => {
-        const x = 140 + d.radius * Math.cos((d.angle * Math.PI) / 180)
-        const y = 140 + d.radius * Math.sin((d.angle * Math.PI) / 180)
-        return (
-          <VerdictDot
-            key={i}
-            d={d}
-            x={x}
-            y={y}
-            funnel={funnel}
-            visibility={visibility}
-            scale={scale}
-            reducedMotion={reducedMotion}
-          />
-        )
-      })}
-
-      <motion.div className="onboard-verdict-center" style={{ opacity: visibility, scale }}>
-        <svg className="onboard-verdict-ring" viewBox="0 0 132 132">
-          <circle cx="66" cy="66" r={RING_RADIUS} className="onboard-verdict-ring-track" />
-          <circle
-            cx="66"
-            cy="66"
-            r={RING_RADIUS}
-            className="onboard-verdict-ring-fill"
-            strokeDasharray={RING_CIRCUMFERENCE}
-            strokeDashoffset={dashOffset}
-          />
+      {/* Ring path + every dot rotate together as one group ("extremely
+          slowly", per spec) — it's the structure the crowd stands on, not
+          a decorative orbit trail, so it has to move with them. */}
+      <motion.div className="onboard-verdict-spin" style={{ opacity: visibility }}>
+        <svg className="onboard-verdict-ring-svg" viewBox={`0 0 ${WRAP} ${WRAP}`}>
+          <circle cx={CENTER} cy={CENTER} r={RING_R} className="onboard-verdict-ring-path" />
         </svg>
-        <div className="onboard-verdict-text">
-          <span className="onboard-verdict-primary">{redDisplay}% <span className="onboard-verdict-label">RED FLAG</span></span>
-          <span className="onboard-verdict-secondary">{100 - redDisplay}% RELAX</span>
-        </div>
+        {DOTS.map((d, i) => {
+          const x = CENTER + d.radius * Math.cos((d.angle * Math.PI) / 180)
+          const y = CENTER + d.radius * Math.sin((d.angle * Math.PI) / 180)
+          return (
+            <VerdictDot
+              key={i}
+              d={d}
+              x={x}
+              y={y}
+              funnel={funnel}
+              visibility={visibility}
+              scale={scale}
+              reducedMotion={reducedMotion}
+            />
+          )
+        })}
       </motion.div>
+
+      {/* .onboard-verdict-center does the top:50%/left:50%/translate(-50%,-50%)
+          CSS centering. That centering IS a `transform`, and framer-motion
+          takes over the *entire* transform property on any element it
+          writes a motion-value style to (here, `scale`) — putting `scale`
+          on the same centered element silently discards the CSS centering
+          transform. Splitting into an outer plain-CSS positioning layer and
+          an inner framer-driven scale/opacity layer avoids the conflict,
+          same principle as the nested idle-float cards elsewhere. */}
+      <div className="onboard-verdict-center">
+        <motion.div className="onboard-verdict-badge-motion" style={{ opacity: visibility, scale }}>
+          <div className="onboard-verdict-badge">
+            <svg className="onboard-verdict-ring" viewBox="0 0 132 132">
+              <circle cx="66" cy="66" r={RING_RADIUS} className="onboard-verdict-ring-track" />
+              <circle
+                cx="66"
+                cy="66"
+                r={RING_RADIUS}
+                className="onboard-verdict-ring-fill"
+                strokeDasharray={RING_CIRCUMFERENCE}
+                strokeDashoffset={dashOffset}
+              />
+            </svg>
+            <div className="onboard-verdict-text">
+              <span className="onboard-verdict-primary">{redDisplay}%</span>
+              <span className="onboard-verdict-label">RED FLAG</span>
+              <span className="onboard-verdict-secondary">{100 - redDisplay}% RELAX</span>
+            </div>
+          </div>
+        </motion.div>
+      </div>
     </div>
   )
 }

@@ -16,8 +16,9 @@ const INACTIVE_DOT = 'rgba(34,30,26,0.16)'
 
 // Mirrors SwipeCard's own drag-completion tuning (distance ratio + velocity
 // threshold) rather than a bare 50% round, so the pager's commit feel
-// matches the rest of the app's swipe gestures.
-const DISTANCE_RATIO = 0.3
+// matches the rest of the app's swipe gestures. 0.22 sits in the requested
+// 20-25% band.
+const DISTANCE_RATIO = 0.22
 const VELOCITY_THRESHOLD = 500
 // How long after triggering a page transition before this screen's own
 // "arrival" flourishes (the verdict count-up, the Ask-sus card's spring-in,
@@ -55,7 +56,7 @@ const SCREENS = [
     id: 'ask',
     bg: PALETTE[1], // butter-yellow
     headline: <>Got your own story?</>,
-    support: 'When you need a second opinion, the crowd is here.',
+    support: 'Ask Sus. Let the crowd weigh in.',
     Visual: AskSusCard,
     isLast: true,
   },
@@ -92,6 +93,17 @@ export default function Onboarding({ onDone }) {
   const [settledIndex, setSettledIndex] = useState(0)
   const trackX = useMotionValue(0)
   const settleTimeoutRef = useRef(null)
+  // Screen 3's entrance flourishes (card spring-in, the two response chips)
+  // are triggered from here, in goToIndex, rather than from a useEffect
+  // inside AskSusCard itself — verified by direct testing that an
+  // animate() call on a motion value made from a child's own useEffect
+  // does not reliably restart/complete this deep inside the draggable
+  // pager track, while animate() called from this exact function (already
+  // used for the page-snap spring itself) does. Passed down as plain
+  // motion-value props; ConfessionCards/CrowdVerdict simply don't use them.
+  const askCardEntrance = useMotionValue(0)
+  const askFlagEntrance = useMotionValue(0)
+  const askRelaxEntrance = useMotionValue(0)
 
   useEffect(() => {
     const el = viewportRef.current
@@ -137,16 +149,37 @@ export default function Onboarding({ onDone }) {
       : { type: 'spring', stiffness: 300, damping: 32 }
     )
     settleTimeoutRef.current = setTimeout(() => setSettledIndex(clamped), SETTLE_DELAY_MS)
+
+    if (clamped === SCREENS.length - 1) {
+      const spring = { type: 'spring', stiffness: 320, damping: 28 }
+      if (reducedMotion) {
+        askCardEntrance.set(1)
+        askFlagEntrance.set(1)
+        askRelaxEntrance.set(1)
+      } else {
+        animate(askCardEntrance, 1, spring)
+        animate(askFlagEntrance, 1, { ...spring, delay: 0.15 })
+        animate(askRelaxEntrance, 1, { ...spring, delay: 0.35 })
+      }
+    } else {
+      askCardEntrance.set(0)
+      askFlagEntrance.set(0)
+      askRelaxEntrance.set(0)
+    }
   }
 
+  // Mirrors SwipeCard.jsx's own handleDragEnd exactly: commit decision is
+  // driven by `info.offset.x` (the gesture's raw pointer displacement since
+  // drag start, as framer reports it) rather than by re-deriving distance
+  // from the constrained motion value's current position. Those two can
+  // diverge near drag boundaries (elastic resistance pulls the visual
+  // position back before release), which was under-committing real swipes.
   function handleDragEnd(_, info) {
-    const raw = -trackX.get() / viewportWidth
-    const offsetFraction = raw - index
-    const passedDistance = Math.abs(offsetFraction) > DISTANCE_RATIO
+    const passedDistance = Math.abs(info.offset.x) > viewportWidth * DISTANCE_RATIO
     const passedVelocity = Math.abs(info.velocity.x) > VELOCITY_THRESHOLD
     let target = index
     if (passedDistance || passedVelocity) {
-      target = offsetFraction < 0 ? index + 1 : index - 1
+      target = info.offset.x < 0 ? index + 1 : index - 1
     }
     goToIndex(target)
   }
@@ -172,14 +205,22 @@ export default function Onboarding({ onDone }) {
           className="onboard-track"
           style={{ x: trackX, width: viewportWidth * SCREENS.length }}
           drag="x"
-          dragConstraints={{ left: -(SCREENS.length - 1) * viewportWidth, right: 0 }}
-          dragElastic={0.06}
+          dragDirectionLock
+          dragConstraints={viewportRef}
+          dragElastic={0.12}
           onDragEnd={handleDragEnd}
         >
           {SCREENS.map((s, i) => (
             <div className="onboard-page" key={s.id} style={{ width: viewportWidth }}>
               <div className="onboard-visual">
-                <s.Visual pageProgress={pageProgress} active={settledIndex === i} reducedMotion={reducedMotion} />
+                <s.Visual
+                  pageProgress={pageProgress}
+                  active={settledIndex === i}
+                  reducedMotion={reducedMotion}
+                  cardEntrance={askCardEntrance}
+                  flagEntrance={askFlagEntrance}
+                  relaxEntrance={askRelaxEntrance}
+                />
               </div>
               {s.label && <p className="onboard-label">{s.label}</p>}
               <h1 className="onboard-headline">{s.headline}</h1>
@@ -191,8 +232,8 @@ export default function Onboarding({ onDone }) {
 
       <div className="onboard-footer">
         {isLast ? (
-          <button className="btn-primary full onboard-cta" onClick={onDone} aria-label="Start judging">
-            Start judging
+          <button className="btn-primary full onboard-cta" onClick={onDone} aria-label="Start swiping">
+            Start swiping
           </button>
         ) : (
           <button
