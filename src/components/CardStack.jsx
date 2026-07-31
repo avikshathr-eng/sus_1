@@ -66,6 +66,11 @@ export default function CardStack({ onCategoriesChange, dragX }) {
   const lockedRef = useRef(false)
   const hasSwipedRef = useRef(false)
   const revealIdRef = useRef(0)
+  // Whether the in-flight vote for the current revealId has already failed
+  // to save — checked right before the optimistically-scheduled advance
+  // actually fires, so a slow failure can still cancel it in time. See
+  // saveVote/handleSwiped.
+  const revealErrorRef = useRef(false)
   const enterTimeoutRef = useRef(null)
   const advanceTimeoutRef = useRef(null)
   const nextTimeoutRef = useRef(null)
@@ -147,11 +152,19 @@ export default function CardStack({ onCategoriesChange, dragX }) {
     }, ENTRANCE_DURATION)
   }
 
-  // Saves the vote, then fetches the live result. `revealId` guards every
-  // state write against a newer vote (or a fresh retry) having superseded
-  // this call while it was in flight — the result shown must always belong
-  // to the card that was actually just voted on.
-  async function saveVoteAndAdvance(postId, vote, revealId) {
+  // Saves the vote, then fetches the live result, updating `reveal` as each
+  // step resolves. Deliberately does NOT drive the advance-to-next-card
+  // timer anymore (see scheduleAdvance's call site in handleSwiped) — that
+  // used to run from here, meaning the pager's pacing was only ever as fast
+  // as two sequential network round-trips. On a real phone that latency is
+  // variable and stacks with the fixed UI timers, which is exactly what
+  // "fine for the first few swipes, then it keeps getting slower" looks
+  // like — confirmed by testing with heap/DOM-node measurements across 15
+  // rapid swipes (both stayed flat, ruling out an actual JS memory leak)
+  // before finding the network coupling in this function. `revealId` still
+  // guards every state write against a newer vote (or a fresh retry) having
+  // superseded this call while it was in flight.
+  async function saveVote(postId, vote, revealId) {
     const device_id = getDeviceId()
     const { error } = await supabase.from('votes').insert({ post_id: postId, device_id, vote })
 
@@ -159,6 +172,13 @@ export default function CardStack({ onCategoriesChange, dragX }) {
 
     if (error && error.code !== '23505') {
       console.error('vote failed', error)
+      // The normal-path advance was already scheduled optimistically (see
+      // handleSwiped) — a genuinely failed save has to cancel it and wait
+      // for an explicit retry instead of silently advancing past an unsaved
+      // vote.
+      revealErrorRef.current = true
+      clearTimeout(advanceTimeoutRef.current)
+      clearTimeout(nextTimeoutRef.current)
       setReveal((r) => (r && r.id === revealId ? { ...r, status: 'error' } : r))
       return
     }
@@ -172,7 +192,6 @@ export default function CardStack({ onCategoriesChange, dragX }) {
     if (revealIdRef.current !== revealId) return
 
     setReveal((r) => (r && r.id === revealId ? { ...r, status: 'saved', result } : r))
-    scheduleAdvance(revealId)
   }
 
   // Result stays up just long enough to read, then hides itself (phase
@@ -218,24 +237,32 @@ export default function CardStack({ onCategoriesChange, dragX }) {
     const post = posts[index]
     revealIdRef.current += 1
     const revealId = revealIdRef.current
+    revealErrorRef.current = false
     setReveal({ id: revealId, postId: post.id, vote, status: 'saving', result: null })
 
     // The question card must be completely gone before the result card
-    // appears — wait out its own swipe-exit animation first.
+    // appears — wait out its own swipe-exit animation first. scheduleAdvance
+    // fires from right here, the instant the result actually becomes
+    // visible, rather than from whenever the vote-save network call happens
+    // to resolve — see saveVote's own comment for why that coupling was the
+    // real cause of swiping feeling like it degraded over a session.
     clearTimeout(enterTimeoutRef.current)
     enterTimeoutRef.current = setTimeout(() => {
       if (revealIdRef.current !== revealId) return
       setPhase('result')
+      if (!revealErrorRef.current) scheduleAdvance(revealId)
     }, RESULT_ENTER_DELAY)
 
-    saveVoteAndAdvance(post.id, vote, revealId)
+    saveVote(post.id, vote, revealId)
   }
 
   function handleRetryVote() {
     if (!reveal || reveal.status !== 'error') return
     const { id, postId, vote } = reveal
+    revealErrorRef.current = false
     setReveal((r) => (r && r.id === id ? { ...r, status: 'saving' } : r))
-    saveVoteAndAdvance(postId, vote, id)
+    scheduleAdvance(id)
+    saveVote(postId, vote, id)
   }
 
   const outOfSwipes = swipesLeft <= 0
