@@ -10,6 +10,16 @@ import CrowdResultCard from './CrowdResultCard'
 import WordmarkDot from './WordmarkDot'
 
 const HINT_KEY = 'sus_seen_swipe_hint'
+// Once fewer than this many unseen posts remain in the loaded batch, quietly
+// fetch and append more in the background (see the prefetch effect below) —
+// well before the user could actually run out. The seed pool is only 56
+// cards, and a device's own vote history excludes already-voted ones from
+// every fetch, so on a real device that's been tested repeatedly the fresh
+// pool shrinks fast; hitting the end of a batch used to trigger a blocking
+// reload right in the middle of swiping, which is exactly what "some cards
+// are still slow, unpredictably" turned out to be — it only happened when a
+// swipe happened to land on the last loaded post.
+const PREFETCH_THRESHOLD = 6
 // Skip has no result to show — just enough delay for the skip-exit animation
 // to clear before the next card takes over.
 const SKIP_ADVANCE_DELAY = 120
@@ -25,12 +35,13 @@ const ENTRANCE_DURATION = 220
 // card must never appear while the question it belongs to is still visible.
 const RESULT_ENTER_DELAY = 200
 // How long the result card stays fully visible once the real result has
-// arrived. Was 1050ms; cut way down after real-device feedback that the
-// whole question->result->next loop felt sluggish for rapid-fire swiping —
-// this is now tuned for "quick and addictive" over "let it sink in", at the
-// cost of not much settled read time after the count-up animation
-// (CrowdResultCard's own number/bar animation takes 450ms of this).
-const RESULT_VISIBLE_MS = 650
+// arrived. Originally 1050ms; a first pass cut this to 650ms for "quick and
+// addictive", but that left only ~200ms of settled time after the 450ms
+// count-up animation — real-device feedback was that the percentage was
+// gone before it could actually be read. 900ms is the compromise: still
+// meaningfully faster than the original, but leaves ~450ms to actually see
+// the number once it's done animating.
+const RESULT_VISIBLE_MS = 900
 // Gives the result card's own exit animation (see CrowdResultCard's
 // `transition`) time to fully finish before the next question mounts.
 const RESULT_EXIT_MS = 180
@@ -65,6 +76,13 @@ export default function CardStack({ onCategoriesChange, dragX }) {
   const [locked, setLocked] = useState(false)
   const lockedRef = useRef(false)
   const hasSwipedRef = useRef(false)
+  // Whether a fetch has ever come back with zero fresh posts — i.e. this
+  // device has actually voted on everything available, as opposed to just
+  // being between prefetch batches. Distinguishes the two in the empty
+  // state below so "still loading more" doesn't look like "nothing left".
+  const [hasMore, setHasMore] = useState(true)
+  const hasMoreRef = useRef(true)
+  const loadingMoreRef = useRef(false)
   const revealIdRef = useRef(0)
   // Whether the in-flight vote for the current revealId has already failed
   // to save — checked right before the optimistically-scheduled advance
@@ -75,6 +93,27 @@ export default function CardStack({ onCategoriesChange, dragX }) {
   const advanceTimeoutRef = useRef(null)
   const nextTimeoutRef = useRef(null)
   const unlockTimeoutRef = useRef(null)
+
+  // Shared by the initial load and the background prefetch below — fetches
+  // every approved post NOT in excludeIds, filters locally-hidden ones, and
+  // returns them with user-submitted posts shuffled ahead of the seed pool
+  // (so a fresh Spill gets seen soon rather than buried in the much larger
+  // starter set). Returns null on a hard query error so callers can tell
+  // that apart from "zero posts came back" (genuine exhaustion).
+  async function fetchApprovedPosts(excludeIds) {
+    let query = supabase.from('posts').select('*').eq('status', 'approved').limit(2000)
+    if (excludeIds.length > 0) {
+      query = query.not('id', 'in', `(${excludeIds.join(',')})`)
+    }
+    const { data, error } = await query
+    if (error) return null
+
+    const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5)
+    const all = filterHidden(data || [])
+    const userSubmitted = shuffle(all.filter((p) => p.source === 'user_submitted'))
+    const rest = shuffle(all.filter((p) => p.source !== 'user_submitted'))
+    return [...userSubmitted, ...rest]
+  }
 
   const loadPosts = useCallback(async () => {
     setLoading(true)
@@ -93,28 +132,16 @@ export default function CardStack({ onCategoriesChange, dragX }) {
     if (votedError) console.error('voted-history load failed', votedError)
     const votedIds = (votedRows || []).map((v) => v.post_id)
 
-    let query = supabase.from('posts').select('*').eq('status', 'approved').limit(2000)
-    if (votedIds.length > 0) {
-      query = query.not('id', 'in', `(${votedIds.join(',')})`)
-    }
-    const { data, error } = await query
-
-    if (error) {
-      console.error('load failed', error)
+    const fresh = await fetchApprovedPosts(votedIds)
+    if (fresh === null) {
+      console.error('load failed')
       setLoading(false)
       return
     }
 
-    // Real people's submissions always queue ahead of the seed question
-    // pool, so a fresh Spill actually gets seen soon instead of being
-    // buried in the (much larger) starter-card pool — each group is still
-    // shuffled on its own for variety.
-    const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5)
-    const all = filterHidden(data || [])
-    const userSubmitted = shuffle(all.filter((p) => p.source === 'user_submitted'))
-    const rest = shuffle(all.filter((p) => p.source !== 'user_submitted'))
-
-    setPosts([...userSubmitted, ...rest])
+    hasMoreRef.current = fresh.length > 0
+    setHasMore(hasMoreRef.current)
+    setPosts(fresh)
     setIndex(0)
     setLoading(false)
   }, [])
@@ -130,6 +157,31 @@ export default function CardStack({ onCategoriesChange, dragX }) {
   const current = posts[index]
   const next = posts[index + 1]
 
+  // Tops up the loaded batch quietly, in the background, well before the
+  // user could actually reach the end of it — see PREFETCH_THRESHOLD. Runs
+  // on every index/posts change but exits immediately unless the remaining
+  // unseen count is actually low, so in practice this only touches the
+  // network every ~50 swipes, not every swipe.
+  useEffect(() => {
+    if (loading || !hasMoreRef.current || loadingMoreRef.current) return
+    if (posts.length - index > PREFETCH_THRESHOLD) return
+
+    loadingMoreRef.current = true
+    ;(async () => {
+      const device_id = getDeviceId()
+      const { data: votedRows } = await supabase.from('votes').select('post_id').eq('device_id', device_id)
+      const votedIds = (votedRows || []).map((v) => v.post_id)
+      const loadedIds = posts.map((p) => p.id)
+      const excludeIds = [...new Set([...votedIds, ...loadedIds])]
+
+      const fresh = await fetchApprovedPosts(excludeIds)
+      loadingMoreRef.current = false
+      if (fresh === null) { console.error('prefetch failed'); return }
+      if (fresh.length === 0) { hasMoreRef.current = false; setHasMore(false); return }
+      setPosts((prev) => [...prev, ...fresh])
+    })()
+  }, [index, posts, loading])
+
   // Report current/next category up to App.jsx — it owns the background,
   // which needs both (the next one only to pre-paint the layer being
   // revealed underneath).
@@ -138,14 +190,12 @@ export default function CardStack({ onCategoriesChange, dragX }) {
   }, [current?.category, next?.category, onCategoriesChange])
 
   function advanceToNextPost() {
-    setIndex((i) => {
-      const nextIndex = i + 1
-      if (nextIndex >= posts.length) {
-        loadPosts()
-        return 0
-      }
-      return nextIndex
-    })
+    // Just increments — the prefetch effect above keeps the batch topped up
+    // well before this could run past the end of it. If it somehow does
+    // (prefetch still in flight, or hasMoreRef is genuinely false), `current`
+    // becomes undefined and the empty-state below takes over rather than
+    // this blocking on a fresh reload mid-swipe.
+    setIndex((i) => i + 1)
     unlockTimeoutRef.current = setTimeout(() => {
       lockedRef.current = false
       setLocked(false)
@@ -288,7 +338,15 @@ export default function CardStack({ onCategoriesChange, dragX }) {
           </div>
         )}
 
-        {!loading && !outOfSwipes && !current && (
+        {/* hasMore distinguishes "the prefetch just hasn't landed yet"
+            (index caught up to a still-in-flight background fetch) from
+            actually having voted on everything available — the former
+            should read as a brief pause, not a dead end. */}
+        {!loading && !outOfSwipes && !current && hasMore && (
+          <p className="muted-text">Loading more…</p>
+        )}
+
+        {!loading && !outOfSwipes && !current && !hasMore && (
           <div className="empty-state">
             <p>No cards yet. Be the first to Spill one 👀</p>
           </div>
