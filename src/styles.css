@@ -628,8 +628,20 @@ body {
 /* Needs an explicit width: it's a shrink-to-fit flex child, and
    .onboard-confess-frame's own `width: 100%` can't resolve against an
    indefinite containing block — an <img> would fall back to its intrinsic
-   size in that situation, but a plain div collapses to 0x0 instead. */
-.onboard-illustration-float { width: 100%; animation: onboardIllustrationFloat 5.2s ease-in-out infinite; }
+   size in that situation, but a plain div collapses to 0x0 instead.
+   It ALSO needs to be a flex/centering container in its own right, not
+   just full-width: a plain block div at width:100% still left-aligns any
+   narrower block child by default (no auto-centering without margin:auto
+   or a flex parent) — the outer .onboard-illustration-wrap's centering
+   only reaches its direct child (this element, already 100% wide, so
+   centering it is a no-op) and doesn't propagate through to whatever
+   THIS contains. Found by actually measuring the rendered artwork's pixel
+   center against the viewport center, not just checking the element
+   existed/sized correctly — at the old ~320px illustration width in a
+   ~334px content area, being left-aligned instead of centered was only
+   off by ~7px and easy to miss; at today's smaller per-slide widths
+   (e.g. 232px) that same bug is a ~50px, very visible offset. */
+.onboard-illustration-float { width: 100%; display: flex; align-items: center; justify-content: center; animation: onboardIllustrationFloat 5.2s ease-in-out infinite; }
 /* 68-74% of the page width, capped so it never grows past a sensible
    ceiling on wide/tablet-ish viewports. Screen-specific overrides below
    (data-screen, set on .onboard-page in Onboarding.jsx) tune the cap per
@@ -648,7 +660,7 @@ body {
    rendered. Position/rotation values (in Onboarding.jsx's CONFESSION_CARDS)
    were measured by pixel-probing the card edges in the source image, not
    visually confirmed in a live browser — may need a nudge. */
-.onboard-confess-frame { position: relative; width: 70%; max-width: 232px; aspect-ratio: 760 / 560; }
+.onboard-confess-frame { position: relative; width: 70%; max-width: 232px; aspect-ratio: 610 / 560; }
 .onboard-confess-frame-img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; user-select: none; }
 .onboard-confess-overlay { position: absolute; text-align: left; }
 .onboard-confess-overlay-label {

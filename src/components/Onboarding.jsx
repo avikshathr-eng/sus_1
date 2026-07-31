@@ -37,12 +37,14 @@ const MAX_APP_WIDTH = 480
 // with blank cards — no "Anonymous" label or confession text baked in, by
 // design this time: we render that text ourselves so it stays crisp at any
 // resolution instead of depending on raster/AI-generated text. Position/
-// rotation below are measured by pixel-probing the card edges in the source
-// image (760x560 frame) — best-effort, not pixel-perfect, since there's no
-// live-browser pass to visually confirm the fit in this environment.
+// rotation were measured by pixel-probing the card edges in the source
+// image, then re-derived here for the current 610x560 frame (the asset was
+// re-cropped to trim asymmetric transparent padding — see the frame's
+// aspect-ratio in styles.css, which must stay in sync with these numbers
+// and with the PNG's actual dimensions any time the asset is re-cropped).
 const CONFESSION_CARDS = [
-  { label: 'Anonymous', text: 'He still texts his ex. 👀', top: 26.5, left: 42, width: 34, rotate: -8 },
-  { label: 'Anonymous', text: 'She cancelled plans last minute again. 🤔', top: 69, left: 60.5, width: 34, rotate: 12 },
+  { label: 'Anonymous', text: 'He still texts his ex. 👀', top: 26.5, left: 41.2, width: 42.4, rotate: -8 },
+  { label: 'Anonymous', text: 'She cancelled plans last minute again. 🤔', top: 69, left: 64.2, width: 42.4, rotate: 12 },
 ]
 
 const SCREENS = [
