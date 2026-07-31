@@ -32,6 +32,18 @@ const MAX_APP_WIDTH = 480
 // chroma-keyed to transparent, so it sits directly on this animated
 // background with no visible edge/seam as the color interpolates during
 // a drag between screens.
+// The onboarding-1.png source (the user's own "ex1" reference art) ships
+// with blank cards — no "Anonymous" label or confession text baked in, by
+// design this time: we render that text ourselves so it stays crisp at any
+// resolution instead of depending on raster/AI-generated text. Position/
+// rotation below are measured by pixel-probing the card edges in the source
+// image (760x560 frame) — best-effort, not pixel-perfect, since there's no
+// live-browser pass to visually confirm the fit in this environment.
+const CONFESSION_CARDS = [
+  { label: 'Anonymous', text: 'He still texts his ex. 👀', top: 26.5, left: 42, width: 34, rotate: -8 },
+  { label: 'Anonymous', text: 'She cancelled plans last minute again. 🤔', top: 69, left: 60.5, width: 34, rotate: 12 },
+]
+
 const SCREENS = [
   {
     id: 'opinions',
@@ -79,8 +91,11 @@ function ProgressDot({ i, pageProgress }) {
 // Its own component (not inlined in the .map() below) so its useTransform
 // calls follow React's rules of hooks — a fixed-length list mapped inline
 // would call hooks in a loop, which only works today by accident of SCREENS
-// never changing length.
-function OnboardingIllustration({ src, index, pageProgress, reducedMotion }) {
+// never changing length. Takes children rather than a hardcoded <img> so the
+// opinions screen can render its image-plus-text-overlay frame through the
+// same opacity/scale/parallax/idle-float wrapper as every other screen's
+// plain image, instead of duplicating that logic.
+function OnboardingIllustration({ index, pageProgress, reducedMotion, children }) {
   const visibility = useTransform(pageProgress, [index - 1, index, index + 1], [0, 1, 0], { clamp: true })
   const scale = useTransform(pageProgress, [index - 1, index, index + 1], [0.92, 1, 0.92], { clamp: true })
   const parallaxX = useTransform(
@@ -92,7 +107,7 @@ function OnboardingIllustration({ src, index, pageProgress, reducedMotion }) {
   return (
     <motion.div className="onboard-illustration-wrap" style={{ opacity: visibility, scale, x: parallaxX }}>
       <div className={reducedMotion ? undefined : 'onboard-illustration-float'}>
-        <img src={src} alt="" className="onboard-illustration-img" draggable={false} />
+        {children}
       </div>
     </motion.div>
   )
@@ -194,7 +209,30 @@ export default function Onboarding({ onDone }) {
           {SCREENS.map((s, i) => (
             <div className="onboard-page" key={s.id} style={{ width: viewportWidth }}>
               <div className="onboard-visual">
-                <OnboardingIllustration src={s.image} index={i} pageProgress={pageProgress} reducedMotion={reducedMotion} />
+                <OnboardingIllustration index={i} pageProgress={pageProgress} reducedMotion={reducedMotion}>
+                  {s.id === 'opinions' ? (
+                    <div className="onboard-confess-frame">
+                      <img src={s.image} alt="" className="onboard-confess-frame-img" draggable={false} />
+                      {CONFESSION_CARDS.map((c, ci) => (
+                        <div
+                          key={ci}
+                          className="onboard-confess-overlay"
+                          style={{
+                            top: `${c.top}%`,
+                            left: `${c.left}%`,
+                            width: `${c.width}%`,
+                            transform: `translate(-50%, -50%) rotate(${c.rotate}deg)`,
+                          }}
+                        >
+                          <span className="onboard-confess-overlay-label">{c.label}</span>
+                          <p className="onboard-confess-overlay-text">{c.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <img src={s.image} alt="" className="onboard-illustration-img" draggable={false} />
+                  )}
+                </OnboardingIllustration>
               </div>
               <h1 className="onboard-headline">{s.headline}</h1>
               <p className="onboard-support">{s.support}</p>

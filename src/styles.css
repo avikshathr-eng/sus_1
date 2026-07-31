@@ -557,8 +557,41 @@ body {
    combine a framer transform with a CSS-keyframe transform without the
    two fighting over one element's `transform` property. */
 .onboard-illustration-wrap { width: 100%; display: flex; align-items: center; justify-content: center; }
-.onboard-illustration-float { animation: onboardIllustrationFloat 5.2s ease-in-out infinite; }
+/* Needs an explicit width: it's a shrink-to-fit flex child, and
+   .onboard-confess-frame's own `width: 100%` can't resolve against an
+   indefinite containing block — an <img> would fall back to its intrinsic
+   size in that situation, but a plain div collapses to 0x0 instead. */
+.onboard-illustration-float { width: 100%; animation: onboardIllustrationFloat 5.2s ease-in-out infinite; }
 .onboard-illustration-img { width: 100%; max-width: 320px; height: auto; display: block; user-select: none; }
+
+/* Screen 1 only: the source art (onboarding-1.png) ships with blank cards
+   on purpose — no "Anonymous" label or confession text baked into the
+   pixels — so it stays sharp at any resolution instead of depending on
+   raster/AI-generated text. .onboard-confess-frame fixes the wrapper's
+   aspect ratio to match the source image exactly (760x560) so the two
+   .onboard-confess-overlay text blocks, positioned by percentage, track
+   the right spot on the card regardless of how large the frame is
+   rendered. Position/rotation values (in Onboarding.jsx's CONFESSION_CARDS)
+   were measured by pixel-probing the card edges in the source image, not
+   visually confirmed in a live browser — may need a nudge. */
+.onboard-confess-frame { position: relative; width: 100%; max-width: 320px; aspect-ratio: 760 / 560; }
+.onboard-confess-frame-img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; user-select: none; }
+.onboard-confess-overlay { position: absolute; text-align: left; }
+.onboard-confess-overlay-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6469c8;
+  margin-bottom: 3px;
+}
+.onboard-confess-overlay-text {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+  line-height: 1.32;
+  margin: 0;
+}
 
 @keyframes onboardIllustrationFloat {
   0%, 100% { transform: translateY(0); }
