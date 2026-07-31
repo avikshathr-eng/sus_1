@@ -35,13 +35,12 @@ const ENTRANCE_DURATION = 220
 // card must never appear while the question it belongs to is still visible.
 const RESULT_ENTER_DELAY = 200
 // How long the result card stays fully visible once the real result has
-// arrived. Originally 1050ms; a first pass cut this to 650ms for "quick and
-// addictive", but that left only ~200ms of settled time after the 450ms
-// count-up animation — real-device feedback was that the percentage was
-// gone before it could actually be read. 900ms is the compromise: still
-// meaningfully faster than the original, but leaves ~450ms to actually see
-// the number once it's done animating.
-const RESULT_VISIBLE_MS = 900
+// arrived. History: 1050ms originally -> cut to 650ms for "quick and
+// addictive" -> 900ms after feedback that was too fast to read -> still not
+// enough per the next round of real-device feedback ("a second more" than
+// what 900ms was giving). 1900ms leaves ~1450ms of settled time after the
+// 450ms count-up animation finishes, well past just barely legible.
+const RESULT_VISIBLE_MS = 1900
 // Gives the result card's own exit animation (see CrowdResultCard's
 // `transition`) time to fully finish before the next question mounts.
 const RESULT_EXIT_MS = 180
