@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion'
 import { ArrowRight } from 'lucide-react'
 import { usePrefersReducedMotion } from '../lib/useReducedMotion'
+import SusWordmark from './SusWordmark'
 
 // Matches --ink in styles.css — hardcoded here (not read from the CSS var)
 // because framer-motion's color interpolation needs a literal color value
@@ -49,7 +50,7 @@ const SCREENS = [
     id: 'opinions',
     bg: '#98A0ED', // lavender
     headline: <>We all have opinions.</>,
-    support: 'Real dilemmas, real people. Judge, swipe, repeat.',
+    support: 'Real dilemmas. Real people. Swipe, judge, repeat.',
     image: '/onboarding-1.png',
   },
   {
@@ -184,16 +185,32 @@ export default function Onboarding({ onDone }) {
 
   return (
     <motion.div className="app onboarding" style={{ backgroundColor: bgColor }}>
-      <div className="onboard-header">
-        {!isLast ? (
-          <button className="onboard-skip" onClick={onDone} aria-label="Skip onboarding">
+      <div className="onboard-topnav">
+        <div className="onboard-topnav-row">
+          {/* The right-hand button is the same markup as Skip (not an
+              empty spacer) so its width always matches exactly — that's
+              what makes space-between center the wordmark mathematically,
+              regardless of how wide "Skip" itself renders. It's hidden via
+              visibility (keeps its layout space) rather than removed. */}
+          <button
+            className="onboard-skip"
+            onClick={onDone}
+            aria-label="Skip onboarding"
+            style={{ visibility: isLast ? 'hidden' : 'visible' }}
+            tabIndex={isLast ? -1 : 0}
+          >
             Skip
           </button>
-        ) : <span />}
-        <div className="onboard-progress" role="progressbar" aria-label="Onboarding progress" aria-valuenow={index + 1} aria-valuemin={1} aria-valuemax={SCREENS.length}>
-          {SCREENS.map((_, i) => <ProgressDot key={i} i={i} pageProgress={pageProgress} />)}
+          <SusWordmark />
+          <button className="onboard-skip onboard-skip-spacer" aria-hidden="true" tabIndex={-1}>
+            Skip
+          </button>
         </div>
-        <span />
+        <div className="onboard-progress-row">
+          <div className="onboard-progress" role="progressbar" aria-label="Onboarding progress" aria-valuenow={index + 1} aria-valuemin={1} aria-valuemax={SCREENS.length}>
+            {SCREENS.map((_, i) => <ProgressDot key={i} i={i} pageProgress={pageProgress} />)}
+          </div>
+        </div>
       </div>
 
       <div className="onboard-viewport" ref={viewportRef}>
@@ -207,35 +224,37 @@ export default function Onboarding({ onDone }) {
           onDragEnd={handleDragEnd}
         >
           {SCREENS.map((s, i) => (
-            <div className="onboard-page" key={s.id} style={{ width: viewportWidth }}>
-              <div className="onboard-visual">
-                <OnboardingIllustration index={i} pageProgress={pageProgress} reducedMotion={reducedMotion}>
-                  {s.id === 'opinions' ? (
-                    <div className="onboard-confess-frame">
-                      <img src={s.image} alt="" className="onboard-confess-frame-img" draggable={false} />
-                      {CONFESSION_CARDS.map((c, ci) => (
-                        <div
-                          key={ci}
-                          className="onboard-confess-overlay"
-                          style={{
-                            top: `${c.top}%`,
-                            left: `${c.left}%`,
-                            width: `${c.width}%`,
-                            transform: `translate(-50%, -50%) rotate(${c.rotate}deg)`,
-                          }}
-                        >
-                          <span className="onboard-confess-overlay-label">{c.label}</span>
-                          <p className="onboard-confess-overlay-text">{c.text}</p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <img src={s.image} alt="" className="onboard-illustration-img" draggable={false} />
-                  )}
-                </OnboardingIllustration>
+            <div className="onboard-page" data-screen={s.id} key={s.id} style={{ width: viewportWidth }}>
+              <div className="onboard-content">
+                <div className="onboard-visual">
+                  <OnboardingIllustration index={i} pageProgress={pageProgress} reducedMotion={reducedMotion}>
+                    {s.id === 'opinions' ? (
+                      <div className="onboard-confess-frame">
+                        <img src={s.image} alt="" className="onboard-confess-frame-img" draggable={false} />
+                        {CONFESSION_CARDS.map((c, ci) => (
+                          <div
+                            key={ci}
+                            className="onboard-confess-overlay"
+                            style={{
+                              top: `${c.top}%`,
+                              left: `${c.left}%`,
+                              width: `${c.width}%`,
+                              transform: `translate(-50%, -50%) rotate(${c.rotate}deg)`,
+                            }}
+                          >
+                            <span className="onboard-confess-overlay-label">{c.label}</span>
+                            <p className="onboard-confess-overlay-text">{c.text}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <img src={s.image} alt="" className="onboard-illustration-img" draggable={false} />
+                    )}
+                  </OnboardingIllustration>
+                </div>
+                <h1 className="onboard-headline">{s.headline}</h1>
+                <p className="onboard-support">{s.support}</p>
               </div>
-              <h1 className="onboard-headline">{s.headline}</h1>
-              <p className="onboard-support">{s.support}</p>
             </div>
           ))}
         </motion.div>

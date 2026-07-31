@@ -12,6 +12,12 @@
   --accent: #b98a52;
   --flag: #F694C3;
   --relax: #82D7B8;
+  /* Permanent brand mark for the "." in "sus." — deliberately its own token,
+     not --flag: --flag is the pastel vote color used inside the swipe UI,
+     while this coral-pink is the wordmark's fixed identity color across
+     onboarding, the age gate, and (per the user) eventually nav/social/the
+     app icon. Never swap this for a slide's background color. */
+  --brand-period: #F05A7E;
 
   --font-display: 'Fraunces', Georgia, serif;
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -40,6 +46,15 @@ body {
 .header { display:flex; justify-content:flex-end; align-items:center; padding: 6px 2px 4px; position:relative; z-index:1; }
 .logo { font-family: var(--font-display); font-weight:600; font-size:22px; color: var(--ink); letter-spacing: -0.01em; }
 .logo .dot { color: #9CADFF; }
+
+/* Shared wordmark — used by SusWordmark.jsx, currently onboarding + the
+   age gate. Deliberately separate from .logo/.dot above (still used by
+   BlockedUnder18.jsx) rather than repointing that at this, since only
+   onboarding/age-gate were asked to move to the coral-permanent-period
+   treatment; .logo's dot intentionally stays the old lavender to avoid an
+   unrequested change to a screen outside this scope. */
+.sus-wordmark { font-family: var(--font-display); font-weight: 700; font-size: 22px; color: var(--ink); letter-spacing: -0.01em; }
+.sus-wordmark-dot { color: var(--brand-period); }
 .nav-link { color: var(--ink-soft); font-size:13px; cursor:pointer; background: rgba(0,0,0,0.04); border:none; padding:9px 16px; border-radius:100px; }
 .link-btn { background:none; border:none; color:var(--ink-soft); text-decoration:underline; font-size:13px; cursor:pointer; margin-top:14px; }
 
@@ -418,14 +433,26 @@ body {
   padding: 0;
   overflow: hidden;
 }
-.onboard-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+/* Two rows: the wordmark row (Skip / sus. / an invisible Skip-shaped
+   spacer) and, ~11px below it, the progress-dot row. The right-hand
+   spacer button is literally the same markup as Skip (same text, same
+   .onboard-skip class) with visibility:hidden rather than an arbitrary
+   fixed width — that's what makes justify-content: space-between center
+   the wordmark exactly: for 3 flex items in a space-between row, the
+   middle item lands dead-center on the container as long as the two
+   outer items are equal width, regardless of what that width is. */
+.onboard-topnav {
+  flex-shrink: 0;
   padding: max(18px, env(safe-area-inset-top)) 22px 0;
   position: relative;
   z-index: 2;
 }
+.onboard-topnav-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.onboard-topnav .sus-wordmark { font-size: 21px; }
 .onboard-skip {
   background: rgba(255,255,255,0.55);
   border: none;
@@ -436,13 +463,13 @@ body {
   border-radius: 100px;
   cursor: pointer;
 }
-.onboard-progress {
+.onboard-skip-spacer { visibility: hidden; pointer-events: none; }
+.onboard-progress-row {
   display: flex;
-  gap: 6px;
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+  justify-content: center;
+  margin-top: 11px;
 }
+.onboard-progress { display: flex; gap: 6px; }
 .onboard-progress-dot {
   height: 6px;
   border-radius: 100px;
@@ -483,12 +510,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* flex-start (not center) with a modest fixed top padding, not full
-     vertical centering — keeps the illustration close under the
-     pagination indicator instead of floating in the middle of the screen
-     with a large empty gap above it. */
-  justify-content: flex-start;
-  padding: 18px 28px 0;
+  padding: 0 28px;
   text-align: center;
   box-sizing: border-box;
   /* Setting overflow-y alone makes browsers auto-compute overflow-x as
@@ -501,35 +523,54 @@ body {
   overflow-y: auto;
 }
 
-.onboard-visual { position: relative; width: 100%; min-height: 260px; display: flex; align-items: center; justify-content: center; margin-bottom: 4px; flex-shrink: 0; }
-.onboard-headline {
-  font-family: var(--font-display);
-  font-weight: 600;
-  color: var(--ink);
-  font-size: 34px;
-  line-height: 1.18;
-  margin: 0 0 10px;
+/* The illustration + heading + support text as one vertically-centered
+   group, not individually positioned pieces — flex: 1 fills whatever
+   space is left between the (separately-sized) top nav and bottom action
+   area, then the translateY nudges the centered group up ~24px so it
+   doesn't read as dead-center/bottom-heavy against the button below it.
+   A transform (not a fixed marginTop) so it still centers correctly as
+   the available height changes across devices instead of pinning to a
+   fixed offset from the top. */
+.onboard-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  transform: translateY(-18px);
 }
+
+.onboard-visual { position: relative; width: 100%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+/* Full typography (font/size/line-height/letter-spacing/max-width) lives
+   on the combined ".gate-screen h1, .onboard-headline" rule further down
+   this file, specifically so this heading and the age gate's can never
+   drift apart — this rule only adds the margin that's specific to sitting
+   inside the onboarding content group. */
+.onboard-headline { margin: 20px 0 9px; }
 .onboard-support {
-  color: var(--ink);
-  opacity: 0.65;
+  font-family: var(--font-sans);
+  color: var(--ink-soft);
   font-size: 15px;
-  line-height: 1.5;
+  font-weight: 400;
+  line-height: 21px;
+  text-align: center;
   margin: 0;
-  max-width: 320px;
+  max-width: 300px;
 }
 
 .onboard-footer {
   flex-shrink: 0;
-  padding: 10px 22px max(22px, env(safe-area-inset-bottom));
+  padding: 10px 16px max(20px, env(safe-area-inset-bottom));
   position: relative;
   z-index: 2;
   display: flex;
   justify-content: center;
 }
 .onboard-next-btn {
-  width: 60px;
-  height: 60px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   border: none;
   background: var(--ink);
@@ -542,6 +583,33 @@ body {
 }
 .onboard-cta {
   width: 100%;
+}
+/* Scoped to onboarding + the age gate specifically (not the shared
+   .btn-primary/.btn-secondary base classes used app-wide) — a deliberately
+   less-rounded rect rather than the full stadium pill used elsewhere,
+   plus explicit Inter/15/600 button type and the disabled-state's own
+   muted grey rather than a dimmed-opacity near-black. */
+.onboarding .btn-primary.full,
+.gate-screen .btn-primary.full,
+.onboarding .btn-secondary.full,
+.gate-screen .btn-secondary.full {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 600;
+  height: 55px;
+  border-radius: 27px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.onboarding .btn-primary.full:disabled,
+.gate-screen .btn-primary.full:disabled {
+  background: #B0ABA3;
+  color: #ffffff;
+  opacity: 1;
+  box-shadow: none;
+  cursor: not-allowed;
 }
 
 /* Illustrations — cropped directly from the user's own reference designs
@@ -562,7 +630,13 @@ body {
    indefinite containing block — an <img> would fall back to its intrinsic
    size in that situation, but a plain div collapses to 0x0 instead. */
 .onboard-illustration-float { width: 100%; animation: onboardIllustrationFloat 5.2s ease-in-out infinite; }
-.onboard-illustration-img { width: 100%; max-width: 320px; height: auto; display: block; user-select: none; }
+/* 68-74% of the page width, capped so it never grows past a sensible
+   ceiling on wide/tablet-ish viewports. Screen-specific overrides below
+   (data-screen, set on .onboard-page in Onboarding.jsx) tune the cap per
+   illustration per the design spec: verdict can run up to the general
+   cap, ask is scaled down a little so its title doesn't sit too low. */
+.onboard-illustration-img { width: 70%; max-width: 290px; max-height: 270px; height: auto; display: block; user-select: none; object-fit: contain; }
+.onboard-page[data-screen="ask"] .onboard-illustration-img { max-width: 258px; }
 
 /* Screen 1 only: the source art (onboarding-1.png) ships with blank cards
    on purpose — no "Anonymous" label or confession text baked into the
@@ -574,22 +648,22 @@ body {
    rendered. Position/rotation values (in Onboarding.jsx's CONFESSION_CARDS)
    were measured by pixel-probing the card edges in the source image, not
    visually confirmed in a live browser — may need a nudge. */
-.onboard-confess-frame { position: relative; width: 100%; max-width: 320px; aspect-ratio: 760 / 560; }
+.onboard-confess-frame { position: relative; width: 70%; max-width: 232px; aspect-ratio: 760 / 560; }
 .onboard-confess-frame-img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; user-select: none; }
 .onboard-confess-overlay { position: absolute; text-align: left; }
 .onboard-confess-overlay-label {
   display: block;
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 600;
   color: #6469c8;
-  margin-bottom: 3px;
+  margin-bottom: 2px;
 }
 .onboard-confess-overlay-text {
   font-family: var(--font-display);
-  font-size: 12px;
+  font-size: 10.5px;
   font-weight: 500;
   color: var(--ink);
-  line-height: 1.32;
+  line-height: 1.28;
   margin: 0;
 }
 
@@ -602,9 +676,46 @@ body {
 }
 
 /* ---------- Age gate / blocked ---------- */
-.gate-screen { justify-content:center; text-align:center; }
-.gate-screen h1 { font-family: var(--font-display); font-weight:600; color: var(--ink); font-size:28px; margin: 20px 0 10px; }
-.gate-screen .btn-primary.full { margin-top: 24px; }
+/* Top-anchored with a modest fixed top offset (not centered) so the group
+   sits in the upper-middle of the screen rather than dead-center — a
+   centered flex column here would leave a large, wasted gap above the
+   content on tall screens, which is exactly what reads as "excessive
+   empty space above". */
+.gate-screen {
+  justify-content: flex-start;
+  align-items: center;
+  text-align: center;
+  padding-top: max(56px, calc(env(safe-area-inset-top) + 32px));
+  /* 16px, not the shared .app/.onboarding default of 22px — matches the
+     onboarding CTA's own horizontal margin (.onboard-footer) per spec. */
+  padding-left: 16px;
+  padding-right: 16px;
+}
+.gate-screen .sus-wordmark { display: block; margin-bottom: 22px; }
+/* Combined with .onboard-headline (not just matched by hand) so the two
+   are guaranteed to stay identical — same Fraunces 700/32/37/-0.4 heading
+   treatment on both the age gate and every onboarding screen. */
+.gate-screen h1, .onboard-headline {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--ink);
+  font-size: 32px;
+  line-height: 37px;
+  letter-spacing: -0.4px;
+  text-align: center;
+  max-width: 340px;
+}
+.gate-screen h1 { margin: 0 0 10px; }
+.gate-screen .muted-text {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 21px;
+  color: var(--ink-soft);
+  max-width: 340px;
+  margin: 0 auto;
+}
+.gate-screen .btn-primary.full { margin-top: 22px; }
 
 /* ---------- Modals ---------- */
 .modal-backdrop { position:fixed; inset:0; background: rgba(20,16,12,0.4); display:flex; align-items:flex-end; justify-content:center; z-index:20; }

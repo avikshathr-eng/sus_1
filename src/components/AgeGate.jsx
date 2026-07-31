@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { confirmAgeAndTos } from '../lib/ageGate'
 import LegalModal from './LegalModal'
+import SusWordmark from './SusWordmark'
 
 // Combined age + terms gate. This is a real entry requirement, not a
 // decoration: Apple's Guideline 1.2 (User-Generated Content) requires an
@@ -20,7 +21,7 @@ export default function AgeGate({ onConfirmed, onUnder18 }) {
 
   return (
     <div className="gate-screen">
-      <div className="logo">sus<span className="dot">.</span></div>
+      <SusWordmark />
       <h1>You need to be 18+</h1>
       <p className="muted-text">
         sus. deals with real talk about relationships, money, and family — some of it
