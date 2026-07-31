@@ -12,24 +12,28 @@ import WordmarkDot from './WordmarkDot'
 const HINT_KEY = 'sus_seen_swipe_hint'
 // Skip has no result to show — just enough delay for the skip-exit animation
 // to clear before the next card takes over.
-const SKIP_ADVANCE_DELAY = 160
+const SKIP_ADVANCE_DELAY = 120
 // How long the incoming card's own entrance animation (see SwipeCard's
 // SETTLE_SPRING) takes to settle, counted from when it mounts. Voting is
 // re-enabled on this fixed schedule rather than via an onAnimationComplete
 // callback — framer-motion doesn't reliably fire that callback for a
 // component whose x/y are simultaneously driven by `drag`, so a
 // deterministic timer is the robust choice here.
-const ENTRANCE_DURATION = 320
+const ENTRANCE_DURATION = 220
 // Gives the outgoing question card's own swipe-exit animation (see
-// SwipeCard's EXIT_TRANSITION, 250ms) time to fully finish — the result
+// SwipeCard's EXIT_TRANSITION, 200ms) time to fully finish — the result
 // card must never appear while the question it belongs to is still visible.
-const RESULT_ENTER_DELAY = 260
+const RESULT_ENTER_DELAY = 200
 // How long the result card stays fully visible once the real result has
-// arrived — spec range 900–1200ms.
-const RESULT_VISIBLE_MS = 1050
+// arrived. Was 1050ms; cut way down after real-device feedback that the
+// whole question->result->next loop felt sluggish for rapid-fire swiping —
+// this is now tuned for "quick and addictive" over "let it sink in", at the
+// cost of not much settled read time after the count-up animation
+// (CrowdResultCard's own number/bar animation takes 450ms of this).
+const RESULT_VISIBLE_MS = 650
 // Gives the result card's own exit animation (see CrowdResultCard's
 // `transition`) time to fully finish before the next question mounts.
-const RESULT_EXIT_MS = 220
+const RESULT_EXIT_MS = 180
 
 export default function CardStack({ onCategoriesChange, dragX }) {
   const reducedMotion = usePrefersReducedMotion()

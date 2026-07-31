@@ -5,12 +5,12 @@ import { usePrefersReducedMotion } from '../lib/useReducedMotion'
 import { useFitText } from '../lib/useFitText'
 import ReportButton from './ReportButton'
 
-const DISTANCE_RATIO = 0.25 // fraction of card width that counts as a completed swipe
-const VELOCITY_THRESHOLD = 500 // px/s — a fast flick completes the swipe even if short
+const DISTANCE_RATIO = 0.2 // fraction of card width that counts as a completed swipe
+const VELOCITY_THRESHOLD = 380 // px/s — a fast flick completes the swipe even if short
 const EXIT_DISTANCE = 900 // px the card travels off-screen on a successful swipe
 
-const EXIT_TRANSITION = { duration: 0.25, ease: [0.22, 1, 0.36, 1] } // 250ms ease-out, no bounce
-const SETTLE_SPRING = { type: 'spring', stiffness: 300, damping: 30, mass: 0.6 } // ~290ms, no overshoot
+const EXIT_TRANSITION = { duration: 0.2, ease: [0.22, 1, 0.36, 1] } // 200ms ease-out, no bounce
+const SETTLE_SPRING = { type: 'spring', stiffness: 420, damping: 28, mass: 0.5 } // ~220ms, no overshoot
 const REDUCED_MOTION_TRANSITION = { duration: 0.15, ease: 'easeOut' }
 
 // The single active card. Only one of these is ever mounted for the voting
