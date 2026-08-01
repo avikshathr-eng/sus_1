@@ -503,6 +503,15 @@ body {
   touch-action: pan-y;
   -webkit-user-select: none;
   user-select: none;
+  /* Hints the browser to promote this to its own GPU-composited layer up
+     front, on mount, rather than reactively the first time it's actually
+     dragged. Layer promotion has a real one-time cost (rasterizing the
+     element and everything painted inside it before compositing can take
+     over) — without this hint, that cost lands right in the middle of the
+     very first swipe gesture, which is exactly what "slow to slide on the
+     very first page, smooth every time after" looks like. Once promoted,
+     every subsequent drag/spring on this element reuses the same layer. */
+  will-change: transform;
 }
 .onboard-page {
   flex-shrink: 0;
@@ -624,7 +633,7 @@ body {
    float — the same two-layer split used everywhere else in this app to
    combine a framer transform with a CSS-keyframe transform without the
    two fighting over one element's `transform` property. */
-.onboard-illustration-wrap { width: 100%; display: flex; align-items: center; justify-content: center; }
+.onboard-illustration-wrap { width: 100%; display: flex; align-items: center; justify-content: center; will-change: transform, opacity; }
 /* Needs an explicit width: it's a shrink-to-fit flex child, and
    .onboard-confess-frame's own `width: 100%` can't resolve against an
    indefinite containing block — an <img> would fall back to its intrinsic

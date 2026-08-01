@@ -125,6 +125,29 @@ export default function Onboarding({ onDone }) {
   const [index, setIndex] = useState(0)
   const trackX = useMotionValue(0)
 
+  // All 3 <img> tags below are already in the DOM from the very first
+  // render (nothing here is conditionally mounted per index), so the
+  // network fetch for each already starts immediately regardless. But
+  // fetching bytes and DECODING them into a paintable bitmap are separate
+  // steps — browsers can defer the (real CPU cost, for a few-hundred-KB
+  // PNG) decode of an off-screen image until it's actually about to be
+  // painted, which is exactly what "slow on the very first swipe forward,
+  // smooth on the way back" looks like: slide 2/3's images sit off-screen
+  // (translated, not display:none) inside the draggable track until you
+  // first drag to them, decode jank happens right at that moment, and
+  // every subsequent view reuses the now-decoded/cached bitmap. Forcing
+  // decode() on all 3 up front, the instant this screen mounts, gives the
+  // browser a head start well before the user could realistically finish
+  // reading slide 1 and swipe — by the time they do, slides 2/3 should
+  // already be sitting fully decoded.
+  useEffect(() => {
+    SCREENS.forEach((s) => {
+      const img = new Image()
+      img.src = s.image
+      img.decode?.().catch(() => {})
+    })
+  }, [])
+
   useEffect(() => {
     const el = viewportRef.current
     if (!el) return
