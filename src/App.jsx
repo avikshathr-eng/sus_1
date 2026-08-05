@@ -6,6 +6,7 @@ import Onboarding from './components/Onboarding'
 import AgeGate from './components/AgeGate'
 import BlockedUnder18 from './components/BlockedUnder18'
 import SwipeBackground from './components/SwipeBackground'
+import FullScreenAgreementResult from './components/FullScreenAgreementResult'
 import BottomNav from './components/BottomNav'
 import CardStack from './components/CardStack'
 import CrowdPicks from './components/CrowdPicks'
@@ -25,9 +26,16 @@ export default function App() {
   const [stage, setStage] = useState(getInitialStage())
   const [tab, setTab] = useState('feed')
   const [showLegal, setShowLegal] = useState(false)
-  // The active card's category (and the *next* card's, for the background
-  // reveal) — CardStack reports these up as plain category ids.
-  const [categories, setCategories] = useState({ current: null, next: null })
+  // The active card's category — CardStack reports this up as a plain
+  // category id for the feed's resting background color.
+  const [currentCategory, setCurrentCategory] = useState(null)
+  // { vote: 'red_flag' | 'relax', redFlagPercentage, relaxPercentage } while
+  // a full-screen vote result is being shown, else null. Reported up by
+  // CardStack (see its onVoteResultChange) rather than owned there, because
+  // this needs to render as a full-app-bleed layer alongside
+  // SwipeBackground — CardStack's own .card-stack slot is a bounded box
+  // partway down the page, not the whole screen.
+  const [voteResult, setVoteResult] = useState(null)
   // If Spill is opened via "Edit & resubmit" from Your Posts (Crowd Picks),
   // this pre-fills the form with the flagged submission's text/category.
   const [spillDraft, setSpillDraft] = useState(null)
@@ -57,7 +65,14 @@ export default function App() {
   return (
     <div className="app">
       {tab === 'feed' && (
-        <SwipeBackground currentCategory={categories.current} nextCategory={categories.next} dragX={dragX} />
+        <SwipeBackground currentCategory={currentCategory} dragX={dragX} />
+      )}
+      {tab === 'feed' && voteResult && (
+        <FullScreenAgreementResult
+          selectedAnswer={voteResult.vote === 'red_flag' ? 'redFlag' : 'relax'}
+          redFlagPercentage={voteResult.redFlagPercentage}
+          relaxPercentage={voteResult.relaxPercentage}
+        />
       )}
 
       <div className="header">
@@ -66,7 +81,9 @@ export default function App() {
         </button>
       </div>
 
-      {tab === 'feed' && <CardStack onCategoriesChange={setCategories} dragX={dragX} />}
+      {tab === 'feed' && (
+        <CardStack onCategoryChange={setCurrentCategory} onVoteResultChange={setVoteResult} dragX={dragX} />
+      )}
       {tab === 'crowd' && <CrowdPicks onEditPost={openSpillDraft} />}
       {tab === 'spill' && (
         <Spill draft={spillDraft} onDraftConsumed={() => setSpillDraft(null)} />

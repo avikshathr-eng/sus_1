@@ -10,14 +10,17 @@
   --surface: #ffffff;
 
   --accent: #b98a52;
-  --flag: #F694C3;
-  --relax: #82D7B8;
-  /* Permanent brand mark for the "." in "sus." — deliberately its own token,
-     not --flag: --flag is the pastel vote color used inside the swipe UI,
-     while this coral-pink is the wordmark's fixed identity color across
-     onboarding, the age gate, and (per the user) eventually nav/social/the
-     app icon. Never swap this for a slide's background color. */
-  --brand-period: #F05A7E;
+  --flag: #D3453B;
+  --relax: #449F66;
+  /* The "." in "sus." — kept as its own token (see SusWordmark.jsx) rather
+     than referencing --flag directly, even though both now resolve to the
+     same red: the wordmark's identity and "this is a Red Flag vote" are
+     still conceptually different things, and giving the wordmark its own
+     variable keeps it free to diverge again later without touching every
+     vote-color consumer. Matches VOTE_COLORS.redFlag in lib/voteColors.js
+     — keep both in sync by hand. */
+  --brand-period: #D3453B;
+  --vote-result-text: #FFF8F0;
 
   --font-display: 'Fraunces', Georgia, serif;
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -47,14 +50,27 @@ body {
 .logo { font-family: var(--font-display); font-weight:600; font-size:22px; color: var(--ink); letter-spacing: -0.01em; }
 .logo .dot { color: #9CADFF; }
 
-/* Shared wordmark — used by SusWordmark.jsx, currently onboarding + the
-   age gate. Deliberately separate from .logo/.dot above (still used by
-   BlockedUnder18.jsx) rather than repointing that at this, since only
-   onboarding/age-gate were asked to move to the coral-permanent-period
+/* Shared wordmark (SusWordmark.jsx) — onboarding, the age gate, and now the
+   feed header (see .sus-wordmark-feed below, replacing the old separate
+   WordmarkDot circle there). Deliberately separate from .logo/.dot above
+   (still used by BlockedUnder18.jsx only) rather than repointing that at
+   this, since only these three were asked to move to the red-period
    treatment; .logo's dot intentionally stays the old lavender to avoid an
-   unrequested change to a screen outside this scope. */
-.sus-wordmark { font-family: var(--font-display); font-weight: 700; font-size: 22px; color: var(--ink); letter-spacing: -0.01em; }
-.sus-wordmark-dot { color: var(--brand-period); }
+   unrequested change to a screen outside this scope.
+   font-size/weight/line-height/letter-spacing are set here (the 22px
+   default, for onboarding/the age gate) rather than left to inherit,
+   because .sus-wordmark-text/.sus-wordmark-dot below pull their own font
+   via `font: inherit` FROM THIS SPAN specifically — a modifier class like
+   .sus-wordmark-feed only needs to override the properties here to resize
+   the whole wordmark, both spans included, with no per-child changes. */
+.sus-wordmark { display: inline-flex; align-items: baseline; white-space: nowrap; line-height: 1; font-family: var(--font-display); font-weight: 700; font-size: 22px; color: var(--ink); letter-spacing: -0.01em; }
+.sus-wordmark-text { color: inherit; font: inherit; }
+.sus-wordmark-dot { display: inline-block; color: var(--brand-period); font: inherit; line-height: inherit; margin-left: 0.015em; }
+/* Feed header's larger treatment — same numbers .feed-title used to set on
+   itself directly before the wordmark moved in; .feed-title itself now only
+   handles layout (centering, margin, text-shadow), since those DO inherit
+   through .sus-wordmark's children unlike font-size/weight. */
+.sus-wordmark-feed { font-size: 50px; font-weight: 700; line-height: 1.05; letter-spacing: -0.025em; }
 .nav-link { color: var(--ink-soft); font-size:13px; cursor:pointer; background: rgba(0,0,0,0.04); border:none; padding:9px 16px; border-radius:100px; }
 .link-btn { background:none; border:none; color:var(--ink-soft); text-decoration:underline; font-size:13px; cursor:pointer; margin-top:14px; }
 
@@ -91,6 +107,58 @@ body {
 }
 .swipe-bg-layer { position: absolute; inset: 0; }
 
+/* Full-bleed vote-result takeover — same full-app footprint as .swipe-bg
+   (see App.jsx, rendered as its sibling). z-index 100 puts it above
+   EVERYTHING else in the app, including the header (z-index 1) and the
+   bottom nav pill (z-index 10) — it needs to fully cover and block
+   interaction with both while it's up, not just the feed content. Plain
+   conditional rendering, no exit animation — same "disappears instantly"
+   tradeoff already established by .crowd-result-card, so it can never
+   linger over the next card. */
+.vote-result-fullscreen {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.vote-result-pct {
+  font-family: var(--font-sans);
+  font-size: clamp(64px, 18vw, 104px);
+  font-weight: 800;
+  line-height: 0.9;
+  letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums;
+  color: var(--vote-result-text);
+  text-align: center;
+}
+.vote-result-label {
+  font-family: var(--font-sans);
+  font-size: clamp(18px, 5vw, 28px);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--vote-result-text);
+  text-align: center;
+  margin-top: 12px;
+}
+.vote-result-sub {
+  font-family: var(--font-sans);
+  font-size: clamp(13px, 3.8vw, 17px);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--vote-result-text);
+  opacity: 0.88;
+  text-align: center;
+  margin-top: 22px;
+}
+
 /* ---------- Feed / swipe cards ---------- */
 .feed-tab {
   flex:1;
@@ -100,25 +168,9 @@ body {
   z-index:1;
 }
 .feed-title {
-  font-family: var(--font-display);
-  font-weight:700;
-  font-size:50px;
-  line-height:1.05;
   text-align:center;
-  color: var(--ink);
   margin: 18px 0 8px;
-  letter-spacing: -0.025em;
   text-shadow: 0 2px 18px rgba(20,15,10,0.1);
-}
-.feed-title .dot { color: #9CADFF; }
-.wordmark-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-left: 3px;
-  margin-bottom: 6px;
-  transition: background-color 400ms ease;
 }
 .feed-meta { color: var(--ink-soft); font-size:14px; text-align:center; margin-bottom:26px; letter-spacing: 0.02em; }
 .card-stack {
@@ -218,12 +270,13 @@ body {
 
 .swipe-hint { text-align:center; color: var(--ink-soft); font-size:13px; margin: 0 0 18px; }
 
-/* ---------- Crowd result card ---------- */
+/* ---------- Crowd result card (Skip / error only — see CrowdResultCard.jsx) ---------- */
 /* Shares .swipe-card's exact geometry (same absolute positioning, size,
    radius, shadow — see above) so it reads as occupying the very same slot
    the question card was just in, not a separate floating element. Only one
-   of .swipe-card / .crowd-result-card is ever mounted at a time (see
-   CardStack's AnimatePresence mode="wait"). */
+   of .swipe-card / .crowd-result-card is ever mounted at a time — plain
+   conditional rendering in CardStack, not AnimatePresence (see its own
+   comments for why). */
 .crowd-result-card { cursor: default; touch-action: auto; }
 .crowd-result-body { flex:1; display:flex; flex-direction:column; }
 .crowd-result-label { font-size:12px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color: var(--ink-soft); }
@@ -236,8 +289,7 @@ body {
   font-weight: 700;
   color: #000000;
 }
-.crowd-result-pill.red_flag { background: var(--flag); }
-.crowd-result-pill.relax { background: var(--relax); }
+.crowd-result-pill.skip { background: rgba(28,22,38,0.06); color: var(--ink); }
 
 .crowd-result-split {
   flex: 1;
@@ -322,10 +374,26 @@ body {
   box-shadow: 0 20px 40px -18px rgba(40,30,15,0.16);
 }
 .pick-top-row { display:flex; justify-content:space-between; align-items:center; gap:8px; }
-.pick-pct { font-size:20px; font-weight:700; color: var(--ink); }
 .pick-text { font-family: var(--font-display); color: var(--ink); font-size:19px; font-weight:500; margin: 14px 0 6px; line-height:1.4; }
 .pick-card .muted-text { color: var(--ink-soft); }
-.result-bar-track { height:8px; border-radius:100px; background: rgba(0,0,0,0.06); overflow:hidden; display:flex; margin-top:10px; }
+
+/* This device's own answer for the card. */
+.my-answer-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 6px 11px;
+  border-radius: 999px;
+  margin: 6px 0 14px;
+}
+.my-answer-chip.red_flag { background: rgba(211,69,59,0.12); color:#A92F28; }
+.my-answer-chip.relax { background: rgba(68,159,102,0.14); color:#287442; }
+.my-answer-chip.skip { background: rgba(0,0,0,0.06); color: var(--ink-soft); }
+
+.pick-pct-row { display:flex; justify-content:space-between; font-size:14px; font-weight:700; color: var(--ink); margin-top: 4px; }
+.result-bar-track { height:8px; border-radius:100px; background: rgba(0,0,0,0.06); overflow:hidden; display:flex; margin-top:8px; }
 .result-bar-fill.red { background: var(--flag); height:100%; }
 .result-bar-fill.green { background: var(--relax); height:100%; }
 

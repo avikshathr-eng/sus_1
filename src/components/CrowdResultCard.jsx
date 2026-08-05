@@ -1,57 +1,33 @@
-import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Flag, CheckCircle } from 'lucide-react'
 import { calculateDisplayedVoteSplit, formatVoteCountLabel } from '../lib/voteSplit'
+import { VOTE_COLORS } from '../lib/voteColors'
 
-// Counts a percentage up from 50 (the neutral starting point every card
-// animates from) to its final displayed value — the bar itself animates the
-// same interval declaratively via framer; a plain text node needs its own
-// tick.
-function useCountFrom50(target, durationMs, active) {
-  const [value, setValue] = useState(50)
-  useEffect(() => {
-    if (!active) {
-      setValue(target)
-      return
-    }
-    let raf
-    const start = performance.now()
-    const from = 50
-    function tick(now) {
-      const p = Math.min((now - start) / durationMs, 1)
-      setValue(Math.round(from + (target - from) * p))
-      if (p < 1) raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target, durationMs, active])
-  return value
-}
-
+// The neutral result: shown after a Skip (both crowd percentages, no side
+// highlighted, no "you chose" framing since the user didn't actually vote)
+// or after a vote's save failed (retry prompt). A committed Red Flag/Relax
+// vote no longer renders here at all — that's FullScreenAgreementResult's
+// job now (see CardStack, which only ever mounts this component for
+// reveal.vote === 'skip' or reveal.status === 'error').
+//
 // Occupies the exact slot SwipeCard sits in (see CardStack's .card-stack) —
 // rendered only once the outgoing question card has fully finished exiting,
 // and only for as long as it takes to read, per the question → result →
 // next-question sequence. Never coexists on screen with either the question
 // it belongs to or the next one.
 export default function CrowdResultCard({ reveal, reducedMotion, onRetry }) {
-  const { vote, status, result } = reveal
-  const label = vote === 'red_flag' ? 'Red Flag' : 'Relax'
+  const { status, result } = reveal
   const isError = status === 'error'
 
-  // Starts every card at a neutral 50/50 the instant it mounts — if the real
-  // result hasn't arrived yet (rare; the network call started well before
-  // this card is even shown), it simply animates again once it does, from
-  // wherever it currently sits.
+  // 50/50 here only covers the rare case the network call genuinely hasn't
+  // resolved yet by the time this mounts (see CardStack's fixed, network-
+  // independent result timing) — it's never animated away from; the text
+  // just re-renders at the real value the instant `result` arrives, same as
+  // any other data-dependent render.
   const { redPct, relaxPct } = result
     ? calculateDisplayedVoteSplit(result.red_flag_count, result.relax_count)
     : { redPct: 50, relaxPct: 50 }
   const votesLabel = result ? formatVoteCountLabel(result.total_votes) : null
-
-  const animateRed = useCountFrom50(redPct, 450, !reducedMotion)
-  const animateRelax = 100 - animateRed
-  const displayRed = reducedMotion ? redPct : animateRed
-  const displayRelax = reducedMotion ? relaxPct : animateRelax
 
   // No `exit` here — this card is removed via plain conditional rendering
   // (see CardStack), not AnimatePresence, so it disappears the instant
@@ -80,31 +56,31 @@ export default function CrowdResultCard({ reveal, reducedMotion, onRetry }) {
       ) : (
         <div className="crowd-result-body" role="status">
           <span className="crowd-result-label">Crowd split</span>
-          <span className={`crowd-result-pill ${vote}`}>You chose {label}</span>
+          <span className="crowd-result-pill skip">Skipped</span>
 
           <div className="crowd-result-split">
             <div className="crowd-result-side">
-              <Flag size={20} color="#F694C3" />
+              <Flag size={20} color={VOTE_COLORS.redFlag} />
               <span className="crowd-result-side-label">Red Flag</span>
-              <span className="crowd-result-side-pct">{displayRed}%</span>
+              <span className="crowd-result-side-pct">{redPct}%</span>
             </div>
             <div className="crowd-result-side">
-              <CheckCircle size={20} color="#82D7B8" />
+              <CheckCircle size={20} color={VOTE_COLORS.relax} />
               <span className="crowd-result-side-label">Relax</span>
-              <span className="crowd-result-side-pct">{displayRelax}%</span>
+              <span className="crowd-result-side-pct">{relaxPct}%</span>
             </div>
           </div>
 
           <div className="crowd-result-bar-track">
             <motion.div
               className="crowd-result-bar-fill red"
-              initial={{ width: '50%' }}
+              initial={{ width: '0%' }}
               animate={{ width: `${redPct}%` }}
               transition={{ duration: reducedMotion ? 0 : 0.45, ease: 'easeOut' }}
             />
             <motion.div
               className="crowd-result-bar-fill green"
-              initial={{ width: '50%' }}
+              initial={{ width: '0%' }}
               animate={{ width: `${relaxPct}%` }}
               transition={{ duration: reducedMotion ? 0 : 0.45, ease: 'easeOut' }}
             />

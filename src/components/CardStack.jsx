@@ -4,10 +4,11 @@ import { getSwipesLeft, recordSwipe } from '../lib/dailyLimit'
 import { SAFETY_BANNER } from '../lib/safetyResources'
 import { filterHidden } from '../lib/hiddenContent'
 import { usePrefersReducedMotion } from '../lib/useReducedMotion'
+import { calculateDisplayedVoteSplit } from '../lib/voteSplit'
 import SwipeCard from './SwipeCard'
 import VoteButtons from './VoteButtons'
 import CrowdResultCard from './CrowdResultCard'
-import WordmarkDot from './WordmarkDot'
+import SusWordmark from './SusWordmark'
 
 const HINT_KEY = 'sus_seen_swipe_hint'
 // Once fewer than this many unseen posts remain in the loaded batch, quietly
@@ -20,9 +21,6 @@ const HINT_KEY = 'sus_seen_swipe_hint'
 // are still slow, unpredictably" turned out to be — it only happened when a
 // swipe happened to land on the last loaded post.
 const PREFETCH_THRESHOLD = 6
-// Skip has no result to show — just enough delay for the skip-exit animation
-// to clear before the next card takes over.
-const SKIP_ADVANCE_DELAY = 120
 // How long the incoming card's own entrance animation (see SwipeCard's
 // SETTLE_SPRING) takes to settle, counted from when it mounts. Voting is
 // re-enabled on this fixed schedule rather than via an onAnimationComplete
@@ -31,21 +29,19 @@ const SKIP_ADVANCE_DELAY = 120
 // deterministic timer is the robust choice here.
 const ENTRANCE_DURATION = 220
 // Gives the outgoing question card's own swipe-exit animation (see
-// SwipeCard's EXIT_TRANSITION, 200ms) time to fully finish — the result
-// card must never appear while the question it belongs to is still visible.
-const RESULT_ENTER_DELAY = 200
-// How long the result card stays fully visible once the real result has
-// arrived. History: 1050ms originally -> cut to 650ms for "quick and
-// addictive" -> 900ms after feedback that was too fast to read -> still not
-// enough per the next round of real-device feedback ("a second more" than
-// what 900ms was giving). 1900ms leaves ~1450ms of settled time after the
-// 450ms count-up animation finishes, well past just barely legible.
-const RESULT_VISIBLE_MS = 1900
+// SwipeCard's EXIT_TRANSITION, 220ms) time to fully finish — the result
+// must never appear while the question it belongs to is still visible.
+const RESULT_ENTER_DELAY = 220
+// How long the result stays fully visible once it has arrived — vote (the
+// new full-screen takeover) and skip (the split-bar card) share this same
+// hold time so the feed's rhythm doesn't change depending on which one just
+// happened.
+const RESULT_VISIBLE_MS = 1400
 // Gives the result card's own exit animation (see CrowdResultCard's
 // `transition`) time to fully finish before the next question mounts.
 const RESULT_EXIT_MS = 180
 
-export default function CardStack({ onCategoriesChange, dragX }) {
+export default function CardStack({ onCategoryChange, onVoteResultChange, dragX }) {
   const reducedMotion = usePrefersReducedMotion()
   const [posts, setPosts] = useState([])
   const [index, setIndex] = useState(0)
@@ -88,6 +84,25 @@ export default function CardStack({ onCategoriesChange, dragX }) {
   // actually fires, so a slow failure can still cancel it in time. See
   // saveVote/handleSwiped.
   const revealErrorRef = useRef(false)
+  // The result is only allowed to become visible once BOTH of these are true
+  // for the current revealId: the outgoing card's exit animation has had
+  // time to finish, AND the real percentages (or a definitive error) have
+  // actually arrived. Gating on the timer alone — the previous approach —
+  // meant a slow network could still be mid-flight when phase flipped to
+  // 'result', so the result mounted showing the neutral 50/50 fallback and
+  // then jumped to the real numbers a moment later once the fetch resolved.
+  // That jump isn't the artificial counting animation this app deliberately
+  // doesn't have, but it reads exactly the same to someone watching it.
+  // There's deliberately no timeout-based fallback that reveals early if
+  // data is slow — an earlier version of this had one, and on a genuinely
+  // slow connection it could itself fire moments before the real data
+  // arrived, revealing the placeholder and then immediately overwriting it
+  // with the real value — the exact bug this whole gate exists to prevent.
+  // A vote or Skip that never gets a server response just waits; saveVote's
+  // own error path (a real failed request, not merely a slow one) is what
+  // actually resolves that case, via CrowdResultCard's retry UI.
+  const resultTimerReadyRef = useRef(false)
+  const resultDataReadyRef = useRef(false)
   const enterTimeoutRef = useRef(null)
   const advanceTimeoutRef = useRef(null)
   const nextTimeoutRef = useRef(null)
@@ -154,7 +169,6 @@ export default function CardStack({ onCategoriesChange, dragX }) {
   }, [])
 
   const current = posts[index]
-  const next = posts[index + 1]
 
   // Tops up the loaded batch quietly, in the background, well before the
   // user could actually reach the end of it — see PREFETCH_THRESHOLD. Runs
@@ -181,12 +195,29 @@ export default function CardStack({ onCategoriesChange, dragX }) {
     })()
   }, [index, posts, loading])
 
-  // Report current/next category up to App.jsx — it owns the background,
-  // which needs both (the next one only to pre-paint the layer being
-  // revealed underneath).
+  // Report the active card's category up to App.jsx, which owns the feed's
+  // resting background color.
   useEffect(() => {
-    onCategoriesChange?.({ current: current?.category ?? null, next: next?.category ?? null })
-  }, [current?.category, next?.category, onCategoriesChange])
+    onCategoryChange?.(current?.category ?? null)
+  }, [current?.category, onCategoryChange])
+
+  // Report the full-screen vote result up to App.jsx whenever one should be
+  // showing — derived straight from `phase`/`reveal` (the single source of
+  // truth already driving CrowdResultCard below) rather than tracked as
+  // separate state, so it can never drift out of sync with what's actually
+  // being held. Only fires for an actual vote: skip and a failed save keep
+  // using CrowdResultCard's own split-bar/retry UI (see the render below),
+  // so this explicitly excludes both.
+  useEffect(() => {
+    if (phase === 'result' && reveal && reveal.vote !== 'skip' && reveal.status !== 'error') {
+      const { redPct, relaxPct } = reveal.result
+        ? calculateDisplayedVoteSplit(reveal.result.red_flag_count, reveal.result.relax_count)
+        : { redPct: 50, relaxPct: 50 }
+      onVoteResultChange?.({ vote: reveal.vote, redFlagPercentage: redPct, relaxPercentage: relaxPct })
+    } else {
+      onVoteResultChange?.(null)
+    }
+  }, [phase, reveal, onVoteResultChange])
 
   function advanceToNextPost() {
     // Just increments — the prefetch effect above keeps the batch topped up
@@ -221,14 +252,16 @@ export default function CardStack({ onCategoriesChange, dragX }) {
 
     if (error && error.code !== '23505') {
       console.error('vote failed', error)
-      // The normal-path advance was already scheduled optimistically (see
-      // handleSwiped) — a genuinely failed save has to cancel it and wait
-      // for an explicit retry instead of silently advancing past an unsaved
-      // vote.
+      // The normal-path advance may already have been scheduled optimistically
+      // (see maybeRevealResult/handleRetryVote) — a genuinely failed save has
+      // to cancel it and wait for an explicit retry instead of silently
+      // advancing past an unsaved vote.
       revealErrorRef.current = true
       clearTimeout(advanceTimeoutRef.current)
       clearTimeout(nextTimeoutRef.current)
       setReveal((r) => (r && r.id === revealId ? { ...r, status: 'error' } : r))
+      resultDataReadyRef.current = true
+      maybeRevealResult(revealId)
       return
     }
 
@@ -241,6 +274,38 @@ export default function CardStack({ onCategoriesChange, dragX }) {
     if (revealIdRef.current !== revealId) return
 
     setReveal((r) => (r && r.id === revealId ? { ...r, status: 'saved', result } : r))
+    resultDataReadyRef.current = true
+    maybeRevealResult(revealId)
+  }
+
+  // Skip never inserts a vote row — it only needs to read the post's
+  // already-existing split so the result card can show it, the same as a
+  // voter would see, without an "error" retry state: there's no submission
+  // to lose if this read fails, so it just falls back to CrowdResultCard's
+  // own neutral 50/50 display via a null result instead of blocking advance.
+  async function loadSkipResult(postId, revealId) {
+    const { data: result, error } = await supabase
+      .from('post_results')
+      .select('*')
+      .eq('post_id', postId)
+      .single()
+
+    if (revealIdRef.current !== revealId) return
+    if (error) console.error('skip result load failed', error)
+    setReveal((r) => (r && r.id === revealId ? { ...r, status: 'saved', result: result || null } : r))
+    resultDataReadyRef.current = true
+    maybeRevealResult(revealId)
+  }
+
+  // The single gate both the exit-animation timer and the data fetch report
+  // to — only actually reveals the result once both have checked in for this
+  // exact revealId. See resultTimerReadyRef/resultDataReadyRef above for why
+  // this exists, and why there's deliberately no timeout-based fallback here.
+  function maybeRevealResult(revealId) {
+    if (revealIdRef.current !== revealId) return
+    if (!resultTimerReadyRef.current || !resultDataReadyRef.current) return
+    setPhase('result')
+    if (!revealErrorRef.current) scheduleAdvance(revealId)
   }
 
   // Result stays up just long enough to read, then hides itself (phase
@@ -275,34 +340,38 @@ export default function CardStack({ onCategoriesChange, dragX }) {
     }
     setSwipesLeft(recordSwipe())
 
-    // Skipping still uses up today's swipe allowance (above), but there's no
-    // opinion to record and no result to show — just clear the way for the
-    // next card once this one's exit finishes.
-    if (vote === 'skip') {
-      advanceTimeoutRef.current = setTimeout(advanceToNextPost, SKIP_ADVANCE_DELAY)
-      return
-    }
-
+    // Skipping still uses up today's swipe allowance (above), but goes
+    // through this exact same reveal pipeline as a vote now — it shows the
+    // post's existing overall split (see loadSkipResult) rather than
+    // recording an opinion. Same pacing as a vote, just no insert.
     const post = posts[index]
     revealIdRef.current += 1
     const revealId = revealIdRef.current
     revealErrorRef.current = false
+    resultTimerReadyRef.current = false
+    resultDataReadyRef.current = false
     setReveal({ id: revealId, postId: post.id, vote, status: 'saving', result: null })
 
-    // The question card must be completely gone before the result card
-    // appears — wait out its own swipe-exit animation first. scheduleAdvance
-    // fires from right here, the instant the result actually becomes
-    // visible, rather than from whenever the vote-save network call happens
-    // to resolve — see saveVote's own comment for why that coupling was the
-    // real cause of swiping feeling like it degraded over a session.
+    // The question card must be completely gone before the result appears —
+    // wait out its own swipe-exit animation first. But the timer alone isn't
+    // sufficient either: the result must never actually mount showing a
+    // number that isn't the real one, so maybeRevealResult also waits for
+    // the data fetch (below) to report in — whichever of the two finishes
+    // last is what actually reveals it. On a normal connection the fetch
+    // already started well before this timer and wins the race, so nothing
+    // about the felt timing changes; only a slow connection waits a little
+    // longer than usual rather than showing a wrong number first.
     clearTimeout(enterTimeoutRef.current)
     enterTimeoutRef.current = setTimeout(() => {
-      if (revealIdRef.current !== revealId) return
-      setPhase('result')
-      if (!revealErrorRef.current) scheduleAdvance(revealId)
+      resultTimerReadyRef.current = true
+      maybeRevealResult(revealId)
     }, RESULT_ENTER_DELAY)
 
-    saveVote(post.id, vote, revealId)
+    if (vote === 'skip') {
+      loadSkipResult(post.id, revealId)
+    } else {
+      saveVote(post.id, vote, revealId)
+    }
   }
 
   function handleRetryVote() {
@@ -318,7 +387,7 @@ export default function CardStack({ onCategoriesChange, dragX }) {
 
   return (
     <div className="feed-tab">
-      <h1 className="feed-title">sus<WordmarkDot dragX={dragX} /></h1>
+      <h1 className="feed-title"><SusWordmark className="sus-wordmark-feed" dragX={dragX} /></h1>
       <div className="feed-meta">
         {outOfSwipes ? (
           <span>come back tomorrow ✨</span>
@@ -382,7 +451,12 @@ export default function CardStack({ onCategoriesChange, dragX }) {
             }
           />
         )}
-        {!loading && !outOfSwipes && phase === 'result' && reveal && (
+        {/* Skip and a failed save keep the split-bar/retry card in this slot;
+            an actual Red Flag/Relax result now renders as a full-app-bleed
+            layer up in App.jsx instead (see onVoteResultChange above) — this
+            slot is left empty for that case, and the full-screen layer
+            covers it regardless. */}
+        {!loading && !outOfSwipes && phase === 'result' && reveal && (reveal.vote === 'skip' || reveal.status === 'error') && (
           <CrowdResultCard
             key={`r-${reveal.id}`}
             reveal={reveal}

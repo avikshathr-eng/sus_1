@@ -1,6 +1,7 @@
 import { motion, useTransform } from 'framer-motion'
 import { Flag, CheckCircle } from 'lucide-react'
 import { COMPLETION_DISTANCE } from '../lib/dragConfig'
+import { VOTE_COLORS } from '../lib/voteColors'
 
 // Piecewise 3-point range: [-COMPLETION_DISTANCE, 0, COMPLETION_DISTANCE].
 // The segment on a button's "wrong" side has identical start/end values, so
@@ -10,8 +11,12 @@ import { COMPLETION_DISTANCE } from '../lib/dragConfig'
 const RANGE = [-COMPLETION_DISTANCE, 0, COMPLETION_DISTANCE]
 
 const REST_SHADOW = '0 14px 28px -10px rgba(40,30,15,0.22)'
-const RED_SHADOW = '0 18px 34px -10px rgba(246,148,195,0.5)'
-const GREEN_SHADOW = '0 18px 34px -10px rgba(130,215,184,0.5)'
+// rgba triples below are VOTE_COLORS.redFlag/relax in decimal — framer's
+// color interpolator (useTransform below) needs a literal parseable color
+// at each keyframe, not a CSS var() reference, so these can't just point at
+// the shared token directly.
+const RED_SHADOW = '0 18px 34px -10px rgba(211,69,59,0.5)'
+const GREEN_SHADOW = '0 18px 34px -10px rgba(68,159,102,0.5)'
 
 // Tied directly to the same shared `dragX` SwipeCard's gesture writes to —
 // continuous, no React re-renders, and naturally settles back to rest
@@ -20,14 +25,14 @@ const GREEN_SHADOW = '0 18px 34px -10px rgba(130,215,184,0.5)'
 // .card-stack now, not swapped in here, so this is a plain div.
 export default function VoteButtons({ dragX, onVote, locked }) {
   const leftScale = useTransform(dragX, RANGE, [1.1, 1, 0.96])
-  const leftBg = useTransform(dragX, RANGE, ['#F694C3', '#ffffff', '#ffffff'])
-  const leftIcon = useTransform(dragX, RANGE, ['#000000', '#F694C3', '#F694C3'])
+  const leftBg = useTransform(dragX, RANGE, [VOTE_COLORS.redFlag, '#ffffff', '#ffffff'])
+  const leftIcon = useTransform(dragX, RANGE, ['#000000', VOTE_COLORS.redFlag, VOTE_COLORS.redFlag])
   const leftOpacity = useTransform(dragX, RANGE, [1, 1, 0.5])
   const leftShadow = useTransform(dragX, RANGE, [RED_SHADOW, REST_SHADOW, REST_SHADOW])
 
   const rightScale = useTransform(dragX, RANGE, [0.96, 1, 1.1])
-  const rightBg = useTransform(dragX, RANGE, ['#ffffff', '#ffffff', '#82D7B8'])
-  const rightIcon = useTransform(dragX, RANGE, ['#82D7B8', '#82D7B8', '#000000'])
+  const rightBg = useTransform(dragX, RANGE, ['#ffffff', '#ffffff', VOTE_COLORS.relax])
+  const rightIcon = useTransform(dragX, RANGE, [VOTE_COLORS.relax, VOTE_COLORS.relax, '#000000'])
   const rightOpacity = useTransform(dragX, RANGE, [0.5, 1, 1])
   const rightShadow = useTransform(dragX, RANGE, [REST_SHADOW, REST_SHADOW, GREEN_SHADOW])
 
