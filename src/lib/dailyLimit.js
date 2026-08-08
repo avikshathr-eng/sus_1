@@ -7,8 +7,11 @@ export const DAILY_LIMIT = 50
 
 const KEY = 'sus_daily_swipes'
 
+// Fixed to US Eastern so the daily reset lands at midnight ET for every
+// device, regardless of the device's own timezone — not UTC midnight,
+// which drifts 4-5 hours off real ET midnight depending on DST.
 function todayStr() {
-  return new Date().toISOString().slice(0, 10)
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })
 }
 
 export function getSwipesLeft() {
