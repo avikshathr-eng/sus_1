@@ -17,7 +17,7 @@ const filter = new Filter()
 // (supabase/functions/submit-post/index.ts) re-declares the same value
 // server-side, since Deno functions can't import from this file — see the
 // comment there if this ever changes.
-export const MAX_CONFESSION_LENGTH = 180
+export const MAX_CONFESSION_LENGTH = 300
 
 const PHONE_REGEX = /(\+?\d[\d\s-]{8,}\d)/
 const EMAIL_REGEX = /[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}/

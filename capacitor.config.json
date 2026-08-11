@@ -5,5 +5,8 @@
   "bundledWebRuntime": false,
   "server": {
     "androidScheme": "https"
+  },
+  "ios": {
+    "scrollEnabled": false
   }
 }

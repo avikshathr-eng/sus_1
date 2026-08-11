@@ -37,6 +37,16 @@
    real phone and never reproduces via desktop mouse testing. */
 html, body {
   overscroll-behavior: none;
+  /* The actual scrollable box for every tab is the document itself — .app
+     only sets min-height (not a fixed height), so it always grows to fit
+     its content and never clips anything on its own; a tab's own
+     overflow-y:auto (see .crowd-tab/.spill-tab) never gets a bounded
+     ancestor to actually scroll within. Without this, WKWebView (the
+     Capacitor native wrapper) can render document scrolling as sluggish or
+     unresponsive even though it technically still reaches the bottom —
+     the same "fine on desktop, wrong on a real device" class of bug as the
+     overscroll-behavior fix above. */
+  -webkit-overflow-scrolling: touch;
 }
 body {
   margin: 0;
@@ -48,7 +58,18 @@ body {
 .app, .onboarding, .gate-screen {
   max-width: 480px;
   margin: 0 auto;
-  min-height: 100vh;
+  /* A real bound, not a floor — min-height let this box grow taller than
+     the screen with nothing to actually clip, which made `overflow:hidden`
+     here and `overflow-y:auto` on .crowd-tab/.spill-tab both inert: with no
+     bounded ancestor, "scrolling" was always secretly the native WKWebView
+     itself scrolling the whole document, competing with framer-motion's own
+     touch handling for the exact same vertical gesture the skip-swipe uses.
+     100dvh falls back cleanly to 100vh (the line above it) on anything that
+     doesn't understand dvh yet — inside the native app there's no browser
+     chrome to make vh inaccurate anyway, this only matters for the web
+     build in mobile Safari. */
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   padding: 24px 22px 120px;
@@ -371,9 +392,16 @@ body {
    fully clear of the nav instead of sitting behind it. */
 .crowd-tab {
   flex:1;
+  /* A flex item's automatic minimum size defaults to its content's size,
+     not 0 — without this, .crowd-tab refuses to shrink to fit .app's now-
+     bounded height and just overflows it instead, silently clipped by
+     .app's own overflow:hidden with nothing left to actually scroll. This
+     is what makes overflow-y:auto below real instead of dead weight. */
+  min-height: 0;
   position:relative;
   z-index:1;
   overflow-y:auto;
+  -webkit-overflow-scrolling: touch;
   padding-bottom: calc(24px + 66px + env(safe-area-inset-bottom, 0px) + 48px);
 }
 .crowd-tab h2 { font-family: var(--font-display); font-weight:600; color: var(--ink); margin-bottom:4px; }
@@ -424,10 +452,18 @@ body {
 /* ---------- Spill ---------- */
 .spill-tab {
   flex:1;
+  min-height: 0; /* see .crowd-tab's identical comment */
   position:relative;
   z-index:1;
   display:flex;
   flex-direction:column;
+  overflow-y:auto;
+  -webkit-overflow-scrolling: touch;
+  /* Matches .crowd-tab's own reservation — without it the submit button can
+     end up sitting directly behind the fixed .bottom-nav pill with no way
+     to scroll clear of it, confirmed via elementFromPoint(): the button's
+     own hit-test was resolving to the nav's Feed icon underneath it. */
+  padding-bottom: calc(24px + 66px + env(safe-area-inset-bottom, 0px) + 48px);
 }
 .spill-card {
   background: var(--surface);

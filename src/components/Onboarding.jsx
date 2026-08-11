@@ -58,8 +58,12 @@ const SCREENS = [
   {
     id: 'verdict',
     bg: '#E79CBD', // pink
-    headline: <>Every swipe counts.</>,
-    support: 'Hundreds of tiny opinions become one answer.',
+    headline: <>Swipe to judge.</>,
+    // Explicit, spelled-out gesture mapping — this is the one screen in
+    // onboarding whose whole job is teaching the gesture, so it needs to
+    // actually say what each direction does rather than just gesturing at
+    // the concept ("Every swipe counts") the way this copy used to.
+    support: 'Left = red flag. Right = relax (green). Need more context? Swipe up to skip.',
     image: '/onboarding-2.png',
   },
   {
