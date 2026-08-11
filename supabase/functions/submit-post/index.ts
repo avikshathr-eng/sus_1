@@ -26,17 +26,6 @@ const ALLOWED_CATEGORIES = [
 // rather than centralized.
 const MAX_CONFESSION_LENGTH = 300
 
-// Server-side abuse guard, not a UX feature — protects the community's
-// finite voting capacity from one device flooding the answer pool (see
-// the feed-distribution redesign this shipped alongside). Deliberately a
-// UTC calendar-day boundary rather than the client's local midnight: this
-// is a rate limit, not a "come back tomorrow" affordance, so it doesn't
-// need to match anyone's local day the way DAILY_LIMIT (the client-side
-// swipe count in src/lib/dailyLimit.js) does — and it can't ask the client
-// for its timezone without trusting a value the client could just lie
-// about anyway.
-const MAX_SPILLS_PER_DEVICE_PER_DAY = 3
-
 const PHONE_REGEX = /(\+?\d[\d\s-]{8,}\d)/
 const EMAIL_REGEX = /[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}/
 const HANDLE_REGEX = /[@#][\w.]{2,}/
@@ -89,12 +78,12 @@ Deno.serve(async (req) => {
 
     const normalizedDeviceId = typeof device_id === 'string' ? device_id.slice(0, 128) : null
     if (normalizedDeviceId) {
-      // Checked before the daily-count query below — a banned device
-      // shouldn't get a rate-limit-specific error message, and there's no
-      // reason to spend a second query on it. See the banned_devices
-      // migration for how a device actually gets banned (hand-run SQL,
-      // no admin UI) and why this exists (App Store Guideline 1.2 expects
-      // the ability to remove abusive users, not just their content).
+      // No daily submission cap — devices can Spill as many questions as
+      // they want. The only server-side gate left is banned_devices (see
+      // its migration for how a device actually gets banned — hand-run
+      // SQL, no admin UI — and why this exists: App Store Guideline 1.2
+      // expects the ability to remove abusive users, not just their
+      // content).
       const { data: banRow, error: banError } = await supabaseAdmin
         .from('banned_devices')
         .select('device_id')
@@ -107,24 +96,6 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify({ error: 'This device is not permitted to submit posts.' }),
           { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
-
-      const todayStartUtc = new Date()
-      todayStartUtc.setUTCHours(0, 0, 0, 0)
-
-      const { count, error: countError } = await supabaseAdmin
-        .from('posts')
-        .select('id', { count: 'exact', head: true })
-        .eq('device_id', normalizedDeviceId)
-        .gte('created_at', todayStartUtc.toISOString())
-
-      if (countError) throw countError
-
-      if ((count ?? 0) >= MAX_SPILLS_PER_DEVICE_PER_DAY) {
-        return new Response(
-          JSON.stringify({ error: `You've hit today's limit of ${MAX_SPILLS_PER_DEVICE_PER_DAY} Spills — try again tomorrow.` }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
     }

@@ -5,7 +5,7 @@ import { supabase } from './supabase'
 // `data` is null and `error` is a generic FunctionsHttpError whose own
 // .message is just "Edge Function returned a non-2xx status code", not
 // whatever our function actually put in its JSON body. The real message
-// (e.g. submit-post's "You've hit today's limit of 3 Spills...") only
+// (e.g. submit-post's "This device is not permitted to submit posts.") only
 // lives in `error.context`, the raw Response object, and has to be read
 // asynchronously. Every call site that checked `data?.error` directly was
 // silently losing that message and always falling back to a generic
