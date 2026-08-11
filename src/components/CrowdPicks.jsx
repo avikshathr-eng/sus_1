@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase, getDeviceId } from '../lib/supabase'
+import { invokeFunction } from '../lib/invokeFunction'
 import { TAG_LABEL, tagStyleSolid } from '../lib/tags'
 import { calculateDisplayedVoteSplit, formatVoteCountLabel } from '../lib/voteSplit'
 
@@ -122,11 +123,11 @@ export default function CrowdPicks({ onEditPost }) {
   useEffect(() => {
     async function loadMine() {
       setMyPostsLoading(true)
-      const { data, error } = await supabase.functions.invoke('my-posts', {
+      const { data, error } = await invokeFunction('my-posts', {
         body: { device_id: getDeviceId() },
       })
-      if (error || data?.error) {
-        console.error('your posts load failed', error || data?.error)
+      if (error) {
+        console.error('your posts load failed', error)
         setMyPostsLoading(false)
         return
       }

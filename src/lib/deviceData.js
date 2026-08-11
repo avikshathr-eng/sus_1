@@ -1,6 +1,7 @@
 import { getMyPostIds, removeMyPostId } from './myPosts'
 import { getSwipesLeft, DAILY_LIMIT } from './dailyLimit'
-import { supabase, getDeviceId } from './supabase'
+import { getDeviceId } from './supabase'
+import { invokeFunction } from './invokeFunction'
 
 // What's actually stored locally, for the "Manage my data" panel — everything
 // here lives only in this browser's localStorage, nothing server-side is
@@ -23,10 +24,10 @@ export async function deleteAllMySubmissions(onProgress) {
   let failed = 0
 
   for (const id of ids) {
-    const { data, error } = await supabase.functions.invoke('delete-post', {
+    const { error } = await invokeFunction('delete-post', {
       body: { post_id: id, device_id },
     })
-    if (error || data?.error) {
+    if (error) {
       failed += 1
     } else {
       removeMyPostId(id)

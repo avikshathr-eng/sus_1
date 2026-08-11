@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
-import { supabase, getDeviceId } from '../lib/supabase'
+import { getDeviceId } from '../lib/supabase'
+import { invokeFunction } from '../lib/invokeFunction'
 import { REPORT_REASONS } from '../lib/reportReasons'
 import { hidePost } from '../lib/hiddenContent'
 import { hideAuthor } from '../lib/reportActions'
@@ -28,9 +29,10 @@ export default function ReportButton({ postId }) {
     // rejecting every anon-key INSERT project-wide regardless of policy
     // (open Supabase support ticket); the identical insert via service-role
     // works fine. See supabase/functions/record-report/index.ts.
-    await supabase.functions.invoke('record-report', {
+    const { error } = await invokeFunction('record-report', {
       body: { post_id: postId, device_id: getDeviceId(), reason: reasonId },
     })
+    if (error) console.error('report failed', error)
   }
 
   function close() {

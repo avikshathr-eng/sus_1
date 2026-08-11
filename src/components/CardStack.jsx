@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase, getDeviceId } from '../lib/supabase'
+import { invokeFunction } from '../lib/invokeFunction'
 import { DAILY_LIMIT, getSwipesLeft, recordSwipe } from '../lib/dailyLimit'
 import { FEED_BATCH_SIZE } from '../lib/feedDistribution'
 import { getHiddenPostIds } from '../lib/hiddenContent'
@@ -294,10 +295,10 @@ export default function CardStack({ onCategoryChange, onVoteResultChange, dragX 
     // explanation and how to revert this once Supabase confirms a fix.
     let error
     try {
-      const { data, error: invokeError } = await withTimeout(
-        supabase.functions.invoke('record-vote', { body: { post_id: postId, device_id, vote } })
+      const { error: invokeError } = await withTimeout(
+        invokeFunction('record-vote', { body: { post_id: postId, device_id, vote } })
       )
-      error = invokeError || (data?.error ? new Error(data.error) : null)
+      error = invokeError
     } catch (err) {
       error = err
     }
@@ -361,10 +362,9 @@ export default function CardStack({ onCategoryChange, onVoteResultChange, dragX 
     // into `post_skips` directly with the anon key — see saveVote's
     // identical comment above for why. Still fire-and-forget, not awaited
     // before the result fetch below.
-    supabase
-      .functions.invoke('record-skip', { body: { post_id: postId, device_id: getDeviceId() } })
-      .then(({ data, error }) => {
-        if (error || data?.error) console.error('skip persist failed', error || data?.error)
+    invokeFunction('record-skip', { body: { post_id: postId, device_id: getDeviceId() } })
+      .then(({ error }) => {
+        if (error) console.error('skip persist failed', error)
       })
 
     let result = null

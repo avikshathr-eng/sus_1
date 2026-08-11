@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { supabase, getDeviceId } from '../lib/supabase'
+import { getDeviceId } from '../lib/supabase'
+import { invokeFunction } from '../lib/invokeFunction'
 import { TAGS, tagStyleSolid, tagStyleOutline } from '../lib/tags'
 import { validateSubmission, MAX_CONFESSION_LENGTH } from '../lib/moderation'
 import { addMyPostId } from '../lib/myPosts'
@@ -39,12 +40,12 @@ export default function Spill({ draft, onDraftConsumed }) {
 
     setStatus('submitting')
 
-    const { data, error: fnError } = await supabase.functions.invoke('submit-post', {
+    const { data, error: fnError } = await invokeFunction('submit-post', {
       body: { text: text.trim(), category, device_id: getDeviceId() },
     })
 
-    if (fnError || data?.error) {
-      setError(data?.error || 'Something went wrong — try again.')
+    if (fnError) {
+      setError(fnError)
       setStatus('idle')
       return
     }
