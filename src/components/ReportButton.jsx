@@ -2,17 +2,21 @@ import { useState } from 'react'
 import { X } from 'lucide-react'
 import { supabase, getDeviceId } from '../lib/supabase'
 import { REPORT_REASONS } from '../lib/reportReasons'
-import { hidePost, hideAuthor } from '../lib/hiddenContent'
+import { hidePost } from '../lib/hiddenContent'
+import { hideAuthor } from '../lib/reportActions'
 
 // Compact flag menu: report-with-a-reason, plus locally-scoped "hide this
-// post" / "hide this account". Reports don't auto-remove anything — a single
-// bad-faith report shouldn't silence a post — the person running sus. checks
-// the reports table (now including `reason`) periodically and manually
-// unpublishes anything that deserves it. See CLAUDE.md for the query.
+// post" / server-side "hide this account". Reports don't auto-remove
+// anything — a single bad-faith report shouldn't silence a post — the
+// person running sus. checks the reports table (now including `reason`)
+// periodically and manually unpublishes anything that deserves it. See
+// CLAUDE.md for the query.
 //
-// `authorId` is the post's internal device_id — used only as a hide-list key
-// (see lib/hiddenContent.js), never displayed anywhere in this menu.
-export default function ReportButton({ postId, authorId }) {
+// No `authorId` prop anymore — get_feed() never returns a post's raw
+// device_id to the client at all (see the security-audit migrations), so
+// "hide this account" now goes through hideAuthor(postId), which resolves
+// the author server-side via the hide_author() database function.
+export default function ReportButton({ postId }) {
   const [open, setOpen] = useState(false)
   const [sentReason, setSentReason] = useState(null)
   const [hiddenAction, setHiddenAction] = useState(null) // 'post' | 'author'
@@ -87,8 +91,7 @@ export default function ReportButton({ postId, authorId }) {
                 <button
                   className="report-menu-item"
                   role="menuitem"
-                  disabled={!authorId}
-                  onClick={() => { hideAuthor(authorId); setHiddenAction('author') }}
+                  onClick={() => { hideAuthor(postId); setHiddenAction('author') }}
                 >
                   Hide posts from this account
                 </button>

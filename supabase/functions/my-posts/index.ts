@@ -39,9 +39,15 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
+    // vote_count comes straight off the trigger-maintained counter column
+    // (see the feed-distribution migrations) — cheap, no extra query.
+    // Supports the future gathering (0-9) / taking shape (10-39) /
+    // community read (40+) states without Crowd Picks needing to change
+    // today; the classification itself is trivial to derive from this
+    // number whenever that UI actually gets built.
     const { data: posts, error } = await supabaseAdmin
       .from('posts')
-      .select('id, text, category, status, flag_reason, created_at')
+      .select('id, text, category, status, flag_reason, created_at, vote_count')
       .eq('device_id', device_id.slice(0, 128))
       .order('created_at', { ascending: false })
       .limit(100)

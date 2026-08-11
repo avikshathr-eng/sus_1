@@ -199,7 +199,7 @@ export default function SwipeCard({ post, onSwiped, locked, skipEntrance, dragX,
     >
       <div className="card-top-row">
         <span className="card-tag" style={tagStyleSolid(post.category)}>{TAG_LABEL[post.category] || post.category}</span>
-        <ReportButton postId={post.id} authorId={post.device_id} />
+        <ReportButton postId={post.id} />
       </div>
 
       {safetyBanner}

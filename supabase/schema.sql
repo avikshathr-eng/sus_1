@@ -1,5 +1,14 @@
 -- SUS MVP schema — Supabase (Postgres)
--- Run this in Supabase SQL editor, then run seed.sql.
+-- Fresh setup: run this file, then seed.sql, then every file in
+-- supabase/migrations/ in filename order (they're numbered/dated, so a
+-- plain alphabetical run is correct — that's what `supabase db push`
+-- does automatically if you're using the CLI against a linked project).
+-- This file is the base schema as it existed before the feed-distribution
+-- redesign; everything since (post_skips, author_blocks, counter columns,
+-- get_feed(), hide_author(), the votes/crowd_picks RLS lockdown, indexes,
+-- observability views) lives in supabase/migrations/ instead of being
+-- merged back in here, to avoid this file and the migration history
+-- silently drifting out of sync with each other.
 
 create extension if not exists "pgcrypto";
 
@@ -9,7 +18,7 @@ create extension if not exists "pgcrypto";
 -- parent, roommate, anyone.
 create table posts (
   id uuid primary key default gen_random_uuid(),
-  text text not null check (char_length(text) between 5 and 180),
+  text text not null check (char_length(text) between 5 and 300),
   category text not null check (
     category in ('relationship','friendship','career','family','other')
   ),

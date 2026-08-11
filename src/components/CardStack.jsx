@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase, getDeviceId } from '../lib/supabase'
-import { getSwipesLeft, recordSwipe } from '../lib/dailyLimit'
+import { DAILY_LIMIT, getSwipesLeft, recordSwipe } from '../lib/dailyLimit'
+import { FEED_BATCH_SIZE } from '../lib/feedDistribution'
+import { getHiddenPostIds } from '../lib/hiddenContent'
+import { diversifyCategories } from '../lib/categoryDiversity'
 import { SAFETY_BANNER } from '../lib/safetyResources'
-import { filterHidden } from '../lib/hiddenContent'
 import { usePrefersReducedMotion } from '../lib/useReducedMotion'
 import { calculateDisplayedVoteSplit } from '../lib/voteSplit'
 import SwipeCard from './SwipeCard'
@@ -40,6 +42,24 @@ const RESULT_VISIBLE_MS = 1400
 // Gives the result card's own exit animation (see CrowdResultCard's
 // `transition`) time to fully finish before the next question mounts.
 const RESULT_EXIT_MS = 180
+// Supabase's client has no built-in request timeout — on a bad mobile
+// connection a stalled request can hang indefinitely, which leaves
+// maybeRevealResult's data-gate permanently unsatisfied. By the time that
+// happens the card has already exited and swept the shared dragX value (and
+// with it, SwipeBackground's overlay) all the way to full red/green — so a
+// hang here reads as "the screen is stuck on a solid red/green background"
+// with no way out, since the polished full-screen takeover that would
+// normally cover it never gets to show. Racing every network call in the
+// reveal path against this timeout turns a hang into the same real-failure
+// path saveVote already handles correctly, instead of an infinite wait.
+const NETWORK_TIMEOUT_MS = 8000
+
+function withTimeout(promise, ms = NETWORK_TIMEOUT_MS) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), ms)),
+  ])
+}
 
 export default function CardStack({ onCategoryChange, onVoteResultChange, dragX }) {
   const reducedMotion = usePrefersReducedMotion()
@@ -77,6 +97,11 @@ export default function CardStack({ onCategoryChange, onVoteResultChange, dragX 
   // state below so "still loading more" doesn't look like "nothing left".
   const [hasMore, setHasMore] = useState(true)
   const hasMoreRef = useRef(true)
+  // Only meaningful once hasMore is false — distinguishes "literally zero
+  // approved posts exist in the whole system" from "this device has
+  // exhausted everything eligible for it," which need different empty-
+  // state copy (see checkSystemHasAnyApprovedPosts and the render below).
+  const [systemEmpty, setSystemEmpty] = useState(false)
   const loadingMoreRef = useRef(false)
   const revealIdRef = useRef(0)
   // Whether the in-flight vote for the current revealId has already failed
@@ -93,14 +118,17 @@ export default function CardStack({ onCategoryChange, onVoteResultChange, dragX 
   // then jumped to the real numbers a moment later once the fetch resolved.
   // That jump isn't the artificial counting animation this app deliberately
   // doesn't have, but it reads exactly the same to someone watching it.
-  // There's deliberately no timeout-based fallback that reveals early if
-  // data is slow — an earlier version of this had one, and on a genuinely
-  // slow connection it could itself fire moments before the real data
-  // arrived, revealing the placeholder and then immediately overwriting it
-  // with the real value — the exact bug this whole gate exists to prevent.
-  // A vote or Skip that never gets a server response just waits; saveVote's
-  // own error path (a real failed request, not merely a slow one) is what
-  // actually resolves that case, via CrowdResultCard's retry UI.
+  // There's no timeout-based fallback here at the UI-gate level — that was
+  // tried once and, on a genuinely slow connection, could itself fire
+  // moments before the real data arrived, revealing the placeholder and
+  // then immediately overwriting it with the real value, which is the exact
+  // flicker this gate exists to prevent. Instead saveVote/loadSkipResult
+  // race their own network calls against NETWORK_TIMEOUT_MS: a merely slow
+  // connection still waits for the real number with no flicker risk, but a
+  // genuinely hung request (dropped connection, no response ever coming)
+  // eventually rejects and resolves through the same real-failure path as
+  // an actual error, via CrowdResultCard's retry UI — rather than leaving
+  // this gate (and the swept-red/green background behind it) stuck forever.
   const resultTimerReadyRef = useRef(false)
   const resultDataReadyRef = useRef(false)
   const enterTimeoutRef = useRef(null)
@@ -108,49 +136,59 @@ export default function CardStack({ onCategoryChange, onVoteResultChange, dragX 
   const nextTimeoutRef = useRef(null)
   const unlockTimeoutRef = useRef(null)
 
-  // Shared by the initial load and the background prefetch below — fetches
-  // every approved post NOT in excludeIds, filters locally-hidden ones, and
-  // returns them with user-submitted posts shuffled ahead of the seed pool
-  // (so a fresh Spill gets seen soon rather than buried in the much larger
-  // starter set). Returns null on a hard query error so callers can tell
-  // that apart from "zero posts came back" (genuine exhaustion).
-  async function fetchApprovedPosts(excludeIds) {
-    let query = supabase.from('posts').select('*').eq('status', 'approved').limit(2000)
-    if (excludeIds.length > 0) {
-      query = query.not('id', 'in', `(${excludeIds.join(',')})`)
-    }
-    const { data, error } = await query
+  // Server-side eligibility + distribution-ladder ranking — see get_feed()
+  // (supabase/migrations/20260809000003_get_feed.sql). The server already
+  // excludes voted/skipped/owned/author-blocked posts internally (it knows
+  // this device's history directly, no separate lookup needed from here
+  // anymore); the only exclusions still sourced from the client are
+  // individually-hidden posts (hiddenContent.js, never meant to sync
+  // anywhere) and whatever's already in the currently-loaded batch (so a
+  // prefetch can't hand back something already on screen). Applies the
+  // category-diversity reorder pass before returning — a pure local
+  // reorder, doesn't change which posts are included or dropped. Returns
+  // null on a hard query error so callers can tell that apart from "zero
+  // posts came back" (genuine exhaustion).
+  async function fetchFeedBatch(excludeIds, deviceId) {
+    const { data, error } = await supabase.rpc('get_feed', {
+      p_device_id: deviceId,
+      p_limit: FEED_BATCH_SIZE,
+      p_exclude_ids: excludeIds,
+      p_hidden_post_ids: getHiddenPostIds(),
+    })
     if (error) return null
+    return diversifyCategories(data || [])
+  }
 
-    const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5)
-    const all = filterHidden(data || [])
-    const userSubmitted = shuffle(all.filter((p) => p.source === 'user_submitted'))
-    const rest = shuffle(all.filter((p) => p.source !== 'user_submitted'))
-    return [...userSubmitted, ...rest]
+  // get_feed() only ever answers "what's eligible for THIS device" — a
+  // zero-row result can't distinguish "nothing exists in the whole system"
+  // from "this device has voted/skipped/hidden/owns everything currently
+  // eligible," and those need different empty-state copy (see the render
+  // below). Only called on that rare empty-result path, never on every
+  // fetch. Fails open (assumes posts exist) on a network error, since that
+  // reads as the less alarming of the two empty states if something's
+  // temporarily wrong.
+  async function checkSystemHasAnyApprovedPosts() {
+    const { count, error } = await supabase
+      .from('posts')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'approved')
+    if (error) return true
+    return (count ?? 0) > 0
   }
 
   const loadPosts = useCallback(async () => {
     setLoading(true)
     const device_id = getDeviceId()
 
-    // A device should never be shown a card it has already voted on, no
-    // matter how many days/sessions later — fetch this device's own voting
-    // history first so it can be excluded from the pool query itself
-    // (cheaper than fetching everything and filtering client-side, and
-    // stays cheap as the seed pool grows into the thousands).
-    const { data: votedRows, error: votedError } = await supabase
-      .from('votes')
-      .select('post_id')
-      .eq('device_id', device_id)
-
-    if (votedError) console.error('voted-history load failed', votedError)
-    const votedIds = (votedRows || []).map((v) => v.post_id)
-
-    const fresh = await fetchApprovedPosts(votedIds)
+    const fresh = await fetchFeedBatch([], device_id)
     if (fresh === null) {
       console.error('load failed')
       setLoading(false)
       return
+    }
+
+    if (fresh.length === 0) {
+      setSystemEmpty(!(await checkSystemHasAnyApprovedPosts()))
     }
 
     hasMoreRef.current = fresh.length > 0
@@ -174,7 +212,7 @@ export default function CardStack({ onCategoryChange, onVoteResultChange, dragX 
   // user could actually reach the end of it — see PREFETCH_THRESHOLD. Runs
   // on every index/posts change but exits immediately unless the remaining
   // unseen count is actually low, so in practice this only touches the
-  // network every ~50 swipes, not every swipe.
+  // network every ~PREFETCH_THRESHOLD swipes, not every swipe.
   useEffect(() => {
     if (loading || !hasMoreRef.current || loadingMoreRef.current) return
     if (posts.length - index > PREFETCH_THRESHOLD) return
@@ -182,15 +220,17 @@ export default function CardStack({ onCategoryChange, onVoteResultChange, dragX 
     loadingMoreRef.current = true
     ;(async () => {
       const device_id = getDeviceId()
-      const { data: votedRows } = await supabase.from('votes').select('post_id').eq('device_id', device_id)
-      const votedIds = (votedRows || []).map((v) => v.post_id)
       const loadedIds = posts.map((p) => p.id)
-      const excludeIds = [...new Set([...votedIds, ...loadedIds])]
 
-      const fresh = await fetchApprovedPosts(excludeIds)
+      const fresh = await fetchFeedBatch(loadedIds, device_id)
       loadingMoreRef.current = false
       if (fresh === null) { console.error('prefetch failed'); return }
-      if (fresh.length === 0) { hasMoreRef.current = false; setHasMore(false); return }
+      if (fresh.length === 0) {
+        hasMoreRef.current = false
+        setHasMore(false)
+        setSystemEmpty(!(await checkSystemHasAnyApprovedPosts()))
+        return
+      }
       setPosts((prev) => [...prev, ...fresh])
     })()
   }, [index, posts, loading])
@@ -246,7 +286,12 @@ export default function CardStack({ onCategoryChange, onVoteResultChange, dragX 
   // superseded this call while it was in flight.
   async function saveVote(postId, vote, revealId) {
     const device_id = getDeviceId()
-    const { error } = await supabase.from('votes').insert({ post_id: postId, device_id, vote })
+    let error
+    try {
+      ;({ error } = await withTimeout(supabase.from('votes').insert({ post_id: postId, device_id, vote })))
+    } catch (err) {
+      error = err
+    }
 
     if (revealIdRef.current !== revealId) return
 
@@ -265,11 +310,19 @@ export default function CardStack({ onCategoryChange, onVoteResultChange, dragX 
       return
     }
 
-    const { data: result } = await supabase
-      .from('post_results')
-      .select('*')
-      .eq('post_id', postId)
-      .single()
+    // The vote itself is already saved at this point — a slow/failed
+    // percentage fetch shouldn't block or error the whole reveal, just fall
+    // back to the neutral 50/50 display (see the `reveal.result ? ... :
+    // {redPct:50,...}` fallback in the onVoteResultChange effect below).
+    let result = null
+    try {
+      const { data } = await withTimeout(
+        supabase.from('post_results').select('*').eq('post_id', postId).single()
+      )
+      result = data
+    } catch (err) {
+      console.error('result fetch failed or timed out', err)
+    }
 
     if (revealIdRef.current !== revealId) return
 
@@ -283,15 +336,37 @@ export default function CardStack({ onCategoryChange, onVoteResultChange, dragX 
   // voter would see, without an "error" retry state: there's no submission
   // to lose if this read fails, so it just falls back to CrowdResultCard's
   // own neutral 50/50 display via a null result instead of blocking advance.
+  //
+  // It DOES persist the skip itself now (post_skips — see the feed-
+  // distribution migrations), so get_feed excludes this post from ever
+  // reappearing to this device, the same guarantee already given to voted
+  // posts. Fired alongside the result fetch below, not awaited before it —
+  // persisting the skip has no bearing on how fast the reveal can show; it
+  // only needs to land before this post could ever be fetched again, which
+  // has ample time regardless. A duplicate-skip race (code 23505, the
+  // unique (post_id, device_id) constraint) is expected and harmless — the
+  // post is already excluded either way — so it's the one error code this
+  // deliberately doesn't log.
   async function loadSkipResult(postId, revealId) {
-    const { data: result, error } = await supabase
-      .from('post_results')
-      .select('*')
-      .eq('post_id', postId)
-      .single()
+    supabase
+      .from('post_skips')
+      .insert({ post_id: postId, device_id: getDeviceId() })
+      .then(({ error }) => {
+        if (error && error.code !== '23505') console.error('skip persist failed', error)
+      })
+
+    let result = null
+    try {
+      const { data, error } = await withTimeout(
+        supabase.from('post_results').select('*').eq('post_id', postId).single()
+      )
+      if (error) console.error('skip result load failed', error)
+      result = data
+    } catch (err) {
+      console.error('skip result load failed or timed out', err)
+    }
 
     if (revealIdRef.current !== revealId) return
-    if (error) console.error('skip result load failed', error)
     setReveal((r) => (r && r.id === revealId ? { ...r, status: 'saved', result: result || null } : r))
     resultDataReadyRef.current = true
     maybeRevealResult(revealId)
@@ -399,10 +474,19 @@ export default function CardStack({ onCategoryChange, onVoteResultChange, dragX 
       <div className="card-stack">
         {loading && <p className="muted-text">Loading…</p>}
 
-        {!loading && outOfSwipes && (
+        {/* Gated on phase === 'question', not just outOfSwipes — swipesLeft
+            hits 0 the instant the LAST swipe is recorded (see handleSwiped),
+            well before that swipe's own reveal has finished playing. Without
+            this gate, this message rendered immediately underneath the
+            still-in-flight full-screen result, then the result cleared to
+            reveal the message already there — read as "the message, then
+            the last card's percentage" rather than the intended order.
+            Waiting for phase to settle back to 'question' means this only
+            ever appears once the last reveal has genuinely finished. */}
+        {!loading && outOfSwipes && phase === 'question' && (
           <div className="empty-state">
-            <p>You're all caught up for today 🎉</p>
-            <p className="muted-text">Check Crowd Picks while you wait, or come back tomorrow.</p>
+            <p>That's all {DAILY_LIMIT} for today 🎉</p>
+            <p className="muted-text">Come back tomorrow for a fresh batch.</p>
           </div>
         )}
 
@@ -414,9 +498,24 @@ export default function CardStack({ onCategoryChange, onVoteResultChange, dragX 
           <p className="muted-text">Loading more…</p>
         )}
 
-        {!loading && !outOfSwipes && !current && !hasMore && (
+        {/* Two distinct exhaustion states, not one — systemEmpty (set by
+            checkSystemHasAnyApprovedPosts, only ever checked on the rare
+            zero-result path) distinguishes "literally nothing has been
+            approved in the whole system yet" from "you personally have
+            voted/skipped/hidden/own everything currently eligible," which
+            read very differently to someone who's already an active user —
+            the old single "Be the first to Spill one" message was
+            genuinely misleading for the latter case. */}
+        {!loading && !outOfSwipes && !current && !hasMore && systemEmpty && (
           <div className="empty-state">
-            <p>No cards yet. Be the first to Spill one 👀</p>
+            <p>No questions yet 👀</p>
+            <p className="muted-text">Spill the first one.</p>
+          </div>
+        )}
+        {!loading && !outOfSwipes && !current && !hasMore && !systemEmpty && (
+          <div className="empty-state">
+            <p>You're all caught up 👀</p>
+            <p className="muted-text">Check back later or Spill something new.</p>
           </div>
         )}
 

@@ -1,10 +1,17 @@
-// Client-side-only "hide this post" / "hide posts from this account."
-// There are no user accounts, so this can't sync across devices — it's
-// scoped to this browser, which is an honest limitation, not a full block.
-// `device_id` is used only as an internal key here; it is never rendered
-// anywhere in the UI.
+// Client-side-only "hide this post." There are no user accounts, so this
+// can't sync across devices — it's scoped to this browser, which is an
+// honest limitation, not a full block.
+//
+// "Hide this account" used to live here too, keyed by the post's raw
+// device_id (see git history) — that's gone now. It required the client to
+// already hold another device's raw identifier just to store a hide-list
+// entry, which is exactly the kind of client-side device_id exposure the
+// feed-distribution/security redesign closed off. The equivalent feature
+// is now hideAuthor() in src/lib/reportActions.js, which calls the
+// hide_author(requesting_device_id, post_id) database function — the
+// server resolves the author from post_id internally and this client never
+// sees or stores a raw author id again.
 const HIDDEN_POSTS_KEY = 'sus_hidden_posts'
-const HIDDEN_AUTHORS_KEY = 'sus_hidden_authors'
 
 function getSet(key) {
   try {
@@ -23,18 +30,11 @@ export function hidePost(postId) {
   saveSet(HIDDEN_POSTS_KEY, s)
 }
 
-export function hideAuthor(deviceId) {
-  if (!deviceId) return
-  const s = getSet(HIDDEN_AUTHORS_KEY)
-  s.add(deviceId)
-  saveSet(HIDDEN_AUTHORS_KEY, s)
-}
-
-// Drops posts that are individually hidden, or whose (internal-only)
-// device_id belongs to a hidden account.
-export function filterHidden(posts) {
-  const hiddenPosts = getSet(HIDDEN_POSTS_KEY)
-  const hiddenAuthors = getSet(HIDDEN_AUTHORS_KEY)
-  if (hiddenPosts.size === 0 && hiddenAuthors.size === 0) return posts
-  return posts.filter((p) => !hiddenPosts.has(p.id) && !(p.device_id && hiddenAuthors.has(p.device_id)))
+// Returns a plain array of hidden post ids — the shape get_feed's
+// p_hidden_post_ids parameter expects (server-side eligibility now
+// excludes voted/skipped/owned/author-blocked posts itself; this is the
+// one exclusion still sourced from the client, since individual post-hides
+// were never meant to sync anywhere).
+export function getHiddenPostIds() {
+  return [...getSet(HIDDEN_POSTS_KEY)]
 }
