@@ -286,16 +286,25 @@ export default function CardStack({ onCategoryChange, onVoteResultChange, dragX 
   // superseded this call while it was in flight.
   async function saveVote(postId, vote, revealId) {
     const device_id = getDeviceId()
+    // Routes through record-vote (service-role key) rather than inserting
+    // into `votes` directly with the anon key — PostgREST is currently
+    // rejecting every anon-key INSERT project-wide regardless of policy
+    // (open Supabase support ticket), while the identical insert via
+    // service-role works fine. See record-vote/index.ts for the full
+    // explanation and how to revert this once Supabase confirms a fix.
     let error
     try {
-      ;({ error } = await withTimeout(supabase.from('votes').insert({ post_id: postId, device_id, vote })))
+      const { data, error: invokeError } = await withTimeout(
+        supabase.functions.invoke('record-vote', { body: { post_id: postId, device_id, vote } })
+      )
+      error = invokeError || (data?.error ? new Error(data.error) : null)
     } catch (err) {
       error = err
     }
 
     if (revealIdRef.current !== revealId) return
 
-    if (error && error.code !== '23505') {
+    if (error) {
       console.error('vote failed', error)
       // The normal-path advance may already have been scheduled optimistically
       // (see maybeRevealResult/handleRetryVote) — a genuinely failed save has
@@ -348,11 +357,14 @@ export default function CardStack({ onCategoryChange, onVoteResultChange, dragX 
   // post is already excluded either way — so it's the one error code this
   // deliberately doesn't log.
   async function loadSkipResult(postId, revealId) {
+    // Routes through record-skip (service-role key) rather than inserting
+    // into `post_skips` directly with the anon key — see saveVote's
+    // identical comment above for why. Still fire-and-forget, not awaited
+    // before the result fetch below.
     supabase
-      .from('post_skips')
-      .insert({ post_id: postId, device_id: getDeviceId() })
-      .then(({ error }) => {
-        if (error && error.code !== '23505') console.error('skip persist failed', error)
+      .functions.invoke('record-skip', { body: { post_id: postId, device_id: getDeviceId() } })
+      .then(({ data, error }) => {
+        if (error || data?.error) console.error('skip persist failed', error || data?.error)
       })
 
     let result = null

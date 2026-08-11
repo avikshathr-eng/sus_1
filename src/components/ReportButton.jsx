@@ -23,7 +23,14 @@ export default function ReportButton({ postId }) {
 
   async function submitReport(reasonId) {
     setSentReason(reasonId)
-    await supabase.from('reports').insert({ post_id: postId, device_id: getDeviceId(), reason: reasonId })
+    // Routes through record-report (service-role key) rather than inserting
+    // into `reports` directly with the anon key — PostgREST is currently
+    // rejecting every anon-key INSERT project-wide regardless of policy
+    // (open Supabase support ticket); the identical insert via service-role
+    // works fine. See supabase/functions/record-report/index.ts.
+    await supabase.functions.invoke('record-report', {
+      body: { post_id: postId, device_id: getDeviceId(), reason: reasonId },
+    })
   }
 
   function close() {
