@@ -24,6 +24,23 @@ const EMAIL_REGEX = /[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}/
 const HANDLE_REGEX = /[@#][\w.]{2,}/
 const URL_REGEX = /(https?:\/\/|www\.)\S+/i
 
+// Mirrors submit-post/index.ts's LAYER 1 (deterministic hard-reject) checks
+// only — same reasoning there: only the small set of fixed name-
+// introduction phrasings, never a general capitalized-word check (that
+// would false-positive on nearly everything).
+const NAME_INTRO_REGEX =
+  /\b(my|his|her|their|(?:the|this)\s+person(?:['’]s)?|(?:the|this)\s+guy(?:['’]s)?|(?:the|this)\s+girl(?:['’]s)?)\s+name\s+is\b/i
+
+// Deliberately no client-side check for anything semantic — group hate,
+// harassment, threats, identity-in-story, etc. Those are Layer 2's job now
+// (a real classifier call in submit-post's Edge Function, see
+// ../../supabase/functions/_shared/moderation.ts), which only makes sense
+// as a server-side decision at insert time. Blocking them here would either
+// require duplicating an API call from the browser (exposing credentials)
+// or guessing with a regex the server no longer relies on — and would
+// incorrectly tell the user their post failed when it might have actually
+// gone through (approved, or held for review).
+
 export function validateSubmission(text) {
   const trimmed = text.trim()
 
@@ -44,6 +61,9 @@ export function validateSubmission(text) {
   }
   if (URL_REGEX.test(trimmed)) {
     return { ok: false, reason: 'No links allowed.' }
+  }
+  if (NAME_INTRO_REGEX.test(trimmed)) {
+    return { ok: false, reason: 'No real names — describe the behavior, not who they are.' }
   }
   if (filter.isProfane(trimmed)) {
     return { ok: false, reason: 'Keep it clean — try rewording.' }

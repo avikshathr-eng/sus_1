@@ -31,11 +31,13 @@ export default function AgeGate({ onConfirmed, onUnder18 }) {
       <label className="tos-checkbox">
         <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
         <span>
-          I'm 18 or older and I agree to the{' '}
+          I'm 18 or older, and I have read and agree to the{' '}
           <button type="button" className="link-inline" onClick={() => setShowLegal(true)}>
-            Terms &amp; Community Guidelines
-          </button>{' '}
-          — including no harassment, hate speech, or targeting real people.
+            Terms of Use &amp; Community Guidelines
+          </button>
+          . I understand sus. has zero tolerance for objectionable content, harassment, or
+          abusive users, and that sus. may remove content, suspend, or permanently ban anyone
+          who violates these rules.
         </span>
       </label>
 

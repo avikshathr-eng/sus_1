@@ -41,7 +41,7 @@ function viewportSize() {
 // card that ever mounts here (not recreated per-card), it's explicitly
 // reset to 0 on mount below — otherwise a new card would inherit whatever
 // position the previous one exited to.
-export default function SwipeCard({ post, onSwiped, locked, skipEntrance, dragX, safetyBanner }) {
+export default function SwipeCard({ post, onSwiped, locked, skipEntrance, dragX, safetyBanner, onPostRemoved, onPostBlocked }) {
   const reducedMotion = usePrefersReducedMotion()
   const x = dragX
   const y = useMotionValue(0)
@@ -199,7 +199,7 @@ export default function SwipeCard({ post, onSwiped, locked, skipEntrance, dragX,
     >
       <div className="card-top-row">
         <span className="card-tag" style={tagStyleSolid(post.category)}>{TAG_LABEL[post.category] || post.category}</span>
-        <ReportButton postId={post.id} />
+        <ReportButton postId={post.id} onRemoved={onPostRemoved} onBlocked={onPostBlocked} />
       </div>
 
       {safetyBanner}

@@ -1,0 +1,13 @@
+-- Supports admin-posts' ban_author action (see its own comment) now looking
+-- up "every post this device has ever submitted" rather than just the one
+-- reported post, so that ejecting a user for one offending post also pulls
+-- down everything else they've posted — Apple's Guideline 1.2 rejection
+-- requires "removing the content and ejecting the user," and a user who
+-- keeps their other posts live after being banned isn't actually ejected.
+--
+-- No `posts` index on device_id existed before this — every prior device_id
+-- lookup went through service-role Edge Functions filtering a single id
+-- (my-posts, delete-post), cheap enough to not need one at MVP scale. This
+-- one is worth adding now that an admin action fetches "all posts by this
+-- device" as part of its normal path, however small the current data volume.
+create index if not exists idx_posts_device_id on posts (device_id) where device_id is not null;

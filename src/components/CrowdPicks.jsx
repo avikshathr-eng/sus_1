@@ -3,12 +3,13 @@ import { supabase, getDeviceId } from '../lib/supabase'
 import { invokeFunction } from '../lib/invokeFunction'
 import { TAG_LABEL, tagStyleSolid } from '../lib/tags'
 import { calculateDisplayedVoteSplit, formatVoteCountLabel } from '../lib/voteSplit'
+import { removeMyPostId } from '../lib/myPosts'
 
 const STATUS_LABEL = {
   approved: 'Published',
   pending: 'Under review',
   flagged: 'Needs an edit',
-  rejected: 'Not published',
+  rejected: 'Rejected',
 }
 
 // Replaces the old "#N" leaderboard-rank label now that the Answered list
@@ -54,6 +55,29 @@ export default function CrowdPicks({ onEditPost }) {
   const [loading, setLoading] = useState(true)
   const [myPosts, setMyPosts] = useState([])
   const [myPostsLoading, setMyPostsLoading] = useState(true)
+  // "Delete my post" — Apple's Guideline 1.2 requires this be available
+  // directly on the user's own post, not only as the bulk "delete all
+  // submissions" action buried in Settings → Your data. Tap-to-arm, tap-
+  // again-to-confirm (same pattern as LegalModal's "Reset my device"),
+  // keyed by post id so each card's confirm state is independent.
+  const [pendingDeleteId, setPendingDeleteId] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
+
+  async function handleDeletePost(postId) {
+    setDeletingId(postId)
+    const { error } = await invokeFunction('delete-post', {
+      body: { post_id: postId, device_id: getDeviceId() },
+    })
+    if (error) {
+      console.error('delete post failed', error)
+      setDeletingId(null)
+      return
+    }
+    removeMyPostId(postId)
+    setMyPosts((prev) => prev.filter((p) => p.id !== postId))
+    setDeletingId(null)
+    setPendingDeleteId(null)
+  }
 
   // A card's result is a spoiler for the opinion you haven't formed yet —
   // Crowd Picks only ever shows cards this device has personally swiped on
@@ -191,6 +215,28 @@ export default function CrowdPicks({ onEditPost }) {
                 {post.status === 'rejected' && (
                   <p className="muted-text small">This submission wasn't published.</p>
                 )}
+
+                <div className="my-post-delete-row">
+                  {pendingDeleteId === post.id ? (
+                    <>
+                      <button
+                        type="button"
+                        className="btn-secondary danger"
+                        disabled={deletingId === post.id}
+                        onClick={() => handleDeletePost(post.id)}
+                      >
+                        {deletingId === post.id ? 'Deleting…' : 'Tap again to confirm delete'}
+                      </button>
+                      <button type="button" className="btn-secondary" onClick={() => setPendingDeleteId(null)}>
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <button type="button" className="btn-secondary danger" onClick={() => setPendingDeleteId(post.id)}>
+                      Delete my post
+                    </button>
+                  )}
+                </div>
               </div>
             )
           })}

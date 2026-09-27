@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>sus. admin</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px; background: #0f0f12; color: #eee;
+    font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  h1 { font-size: 18px; margin: 0 0 16px; }
+  #login { max-width: 320px; margin: 80px auto; text-align: center; }
+  #login input {
+    width: 100%; padding: 10px 12px; margin: 12px 0; border-radius: 8px;
+    border: 1px solid #333; background: #1a1a1e; color: #eee; font-size: 14px;
+  }
+  #login button, .btn {
+    padding: 8px 14px; border-radius: 8px; border: none; cursor: pointer;
+    font-size: 13px; font-weight: 600;
+  }
+  #login button { width: 100%; background: #6d5efc; color: white; }
+  #login .err { color: #ff6b6b; font-size: 13px; min-height: 18px; }
+  #app { display: none; max-width: 1100px; margin: 0 auto; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .tab {
+    padding: 6px 12px; border-radius: 999px; background: #1a1a1e; border: 1px solid #2a2a30;
+    cursor: pointer; color: #aaa; font-size: 13px;
+  }
+  .tab.active { background: #6d5efc; color: white; border-color: #6d5efc; }
+  .tab .count { opacity: 0.7; margin-left: 4px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #222; vertical-align: top; }
+  th { color: #888; font-weight: 500; font-size: 12px; text-transform: uppercase; }
+  td.text { max-width: 320px; }
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600;
+  }
+  .badge.approved { background: #1e3a2e; color: #6fd399; }
+  .badge.pending { background: #3a331e; color: #e0b95c; }
+  .badge.rejected { background: #3a1e1e; color: #e07c7c; }
+  .badge.flagged { background: #3a1e33; color: #e07cc8; }
+  .reports { color: #e07c7c; font-weight: 600; }
+  .reports.zero { color: #555; font-weight: 400; }
+  .report-age { font-size: 11px; font-weight: 500; color: #888; margin-top: 2px; }
+  .report-age.warn { color: #ff8a3d; font-weight: 700; }
+  .report-age.overdue { color: #ff4d4d; font-weight: 800; background: #3a1414; padding: 2px 6px; border-radius: 4px; display: inline-block; }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .btn.approve { background: #1e3a2e; color: #6fd399; }
+  .btn.reject { background: #3a1e1e; color: #e07c7c; }
+  .btn.flag { background: #3a1e33; color: #e07cc8; }
+  .btn.ban { background: #4a1414; color: #ff8a8a; }
+  .btn.resolve { background: #1e2a3a; color: #7cb8e0; }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .meta { color: #777; font-size: 12px; }
+  .empty { color: #666; text-align: center; padding: 40px; }
+  .refresh { float: right; }
+</style>
+</head>
+<body>
+
+<div id="login">
+  <h1>sus. admin</h1>
+  <input id="passphrase" type="password" placeholder="passphrase" autocomplete="off" />
+  <button onclick="unlock()">Unlock</button>
+  <div class="err" id="loginErr"></div>
+</div>
+
+<div id="app">
+  <h1>sus. admin <button class="btn refresh" onclick="load()">Refresh</button></h1>
+  <div class="tabs" id="tabs"></div>
+  <table>
+    <thead>
+      <tr>
+        <th>Text</th><th>Category</th><th>Status</th><th>Votes</th><th>Reports</th><th>Submitted</th><th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div class="empty" id="empty" style="display:none">Nothing here.</div>
+</div>
+
+<script>
+  const SUPABASE_URL = 'https://qjrrbyoaowpsxlyyfzqj.supabase.co'
+  const ANON_KEY = 'sb_publishable_He5QidbQfFUlaXwEDXfKZw_k3RxyORr'
+  const FN_URL = SUPABASE_URL + '/functions/v1/admin-posts'
+
+  let passphrase = sessionStorage.getItem('sus_admin_pass') || ''
+  let allPosts = []
+  let filter = 'pending'
+
+  async function call(action, extra) {
+    const res = await fetch(FN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: ANON_KEY, Authorization: 'Bearer ' + ANON_KEY },
+      body: JSON.stringify({ passphrase, action, ...extra }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Request failed')
+    return data
+  }
+
+  async function unlock() {
+    passphrase = document.getElementById('passphrase').value
+    document.getElementById('loginErr').textContent = ''
+    try {
+      await load()
+      sessionStorage.setItem('sus_admin_pass', passphrase)
+      document.getElementById('login').style.display = 'none'
+      document.getElementById('app').style.display = 'block'
+    } catch (e) {
+      document.getElementById('loginErr').textContent = 'Wrong passphrase.'
+    }
+  }
+
+  async function load() {
+    const { posts } = await call('list')
+    allPosts = posts
+    render()
+  }
+
+  function setFilter(f) {
+    filter = f
+    render()
+  }
+
+  function counts() {
+    const c = { all: allPosts.length, pending: 0, approved: 0, rejected: 0, flagged: 0, reported: 0 }
+    for (const p of allPosts) {
+      c[p.status] = (c[p.status] || 0) + 1
+      // Counts/filters against open reports only — a post whose reports
+      // were all resolved shouldn't keep showing up as needing attention.
+      if (p.open_report_count > 0) c.reported++
+    }
+    return c
+  }
+
+  // Apple's 1.2 rejection requires acting on reports within 24 hours, so the
+  // dashboard needs the age of the oldest *open* report to be impossible to
+  // miss. Three tiers, not two: plain age under 18h, an explicit
+  // "approaching the deadline" warning from 18h-24h, and a distinct,
+  // unmissable "overdue" state once a report has actually breached the 24h
+  // SLA — those need to look and read differently, not just be a slightly
+  // darker shade of the same warning.
+  function formatReportAge(iso) {
+    if (!iso) return null
+    const ms = Date.now() - new Date(iso).getTime()
+    const mins = Math.floor(ms / 60000)
+    const hours = mins / 60
+    if (mins < 60) return { text: `${mins}m ago`, level: 'ok' }
+    if (hours < 18) return { text: `${Math.floor(hours)}h ago`, level: 'ok' }
+    if (hours < 24) return { text: `${Math.floor(hours)}h old — approaching 24h SLA`, level: 'warn' }
+    return { text: `${Math.floor(hours)}h old — OVERDUE (24h SLA breached)`, level: 'overdue' }
+  }
+
+  function render() {
+    const c = counts()
+    const tabs = [
+      ['pending', 'Pending'], ['reported', 'Reported'], ['flagged', 'Flagged'],
+      ['approved', 'Approved'], ['rejected', 'Rejected'], ['all', 'All'],
+    ]
+    document.getElementById('tabs').innerHTML = tabs.map(([key, label]) =>
+      `<div class="tab ${filter === key ? 'active' : ''}" onclick="setFilter('${key}')">${label} <span class="count">${c[key] || 0}</span></div>`
+    ).join('')
+
+    let visible = allPosts.filter((p) => {
+      if (filter === 'all') return true
+      if (filter === 'reported') return p.open_report_count > 0
+      return p.status === filter
+    })
+
+    // Oldest open report first, so whatever's closest to breaching the
+    // 24h SLA is always at the top of the Reported tab, not buried.
+    if (filter === 'reported') {
+      visible = visible.slice().sort((a, b) => new Date(a.oldest_open_report_at) - new Date(b.oldest_open_report_at))
+    }
+
+    document.getElementById('empty').style.display = visible.length ? 'none' : 'block'
+    document.getElementById('rows').innerHTML = visible.map(rowHtml).join('')
+  }
+
+  function rowHtml(p) {
+    const votes = `${p.result.total_votes} total · ${p.result.red_flag_count} 🚩 / ${p.result.relax_count} 😌`
+    const reportsCls = p.open_report_count > 0 ? 'reports' : 'reports zero'
+    const age = p.open_report_count > 0 ? formatReportAge(p.oldest_open_report_at) : null
+    const ageIcon = age?.level === 'overdue' ? '🚨 ' : age?.level === 'warn' ? '⚠️ ' : ''
+    const ageHtml = age ? `<div class="report-age ${age.level !== 'ok' ? age.level : ''}">${ageIcon}${age.text}</div>` : ''
+    const reportsLabel = p.open_report_count > 0 ? `${p.report_count} (${p.open_report_count} open)` : p.report_count
+    const when = new Date(p.created_at).toLocaleDateString()
+    const canBan = !!p.device_id
+    return `
+      <tr>
+        <td class="text">${escapeHtml(p.text)}${p.flag_reason ? `<div class="meta">flagged: ${escapeHtml(p.flag_reason)}</div>` : ''}</td>
+        <td>${p.category}</td>
+        <td><span class="badge ${p.status}">${p.status}</span></td>
+        <td class="meta">${votes}</td>
+        <td class="${reportsCls}">${reportsLabel}${ageHtml}</td>
+        <td class="meta">${when} · ${p.source}</td>
+        <td class="actions">
+          <button class="btn approve" ${p.status === 'approved' ? 'disabled' : ''} onclick="setStatus('${p.id}','approved')">Approve</button>
+          <button class="btn reject" ${p.status === 'rejected' ? 'disabled' : ''} onclick="setStatus('${p.id}','rejected')">Reject</button>
+          <button class="btn flag" ${p.status === 'flagged' ? 'disabled' : ''} onclick="flagPost('${p.id}')">Flag</button>
+          <button class="btn resolve" ${p.open_report_count > 0 ? '' : 'disabled'} onclick="resolveReports('${p.id}')">Resolve reports</button>
+          <button class="btn ban" ${canBan ? '' : 'disabled'} title="${canBan ? "Remove ALL of this device's posts and permanently block it" : 'Seed content — no device to restrict'}" onclick="banAuthor('${p.id}')">Remove All + Ban Author</button>
+        </td>
+      </tr>`
+  }
+
+  async function setStatus(id, status) {
+    await call('update_status', { post_id: id, status })
+    await load()
+  }
+
+  async function flagPost(id) {
+    const reason = prompt('Reason shown to the submitter:')
+    if (reason === null) return
+    await call('update_status', { post_id: id, status: 'flagged', flag_reason: reason })
+    await load()
+  }
+
+  async function resolveReports(id) {
+    await call('resolve_reports', { post_id: id })
+    await load()
+  }
+
+  async function banAuthor(id) {
+    const reason = prompt('Reason for restricting this device (kept internally, not shown to anyone):', 'Repeated/serious guideline violation')
+    if (reason === null) return
+    if (!confirm('This removes ALL posts from the submitting device and permanently blocks it from posting or voting again. Continue?')) return
+    try {
+      const result = await call('ban_author', { post_id: id, reason })
+      alert(`Removed ${result.removed_post_count} post(s) from this device and blocked it.`)
+      await load()
+    } catch (e) {
+      alert(e.message)
+    }
+  }
+
+  function escapeHtml(s) {
+    const div = document.createElement('div')
+    div.textContent = s
+    return div.innerHTML
+  }
+
+  if (passphrase) {
+    load().then(() => {
+      document.getElementById('login').style.display = 'none'
+      document.getElementById('app').style.display = 'block'
+    }).catch(() => { passphrase = '' })
+  }
+</script>
+</body>
+</html>

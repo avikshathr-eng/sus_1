@@ -9,11 +9,18 @@ import { addMyPostId } from '../lib/myPosts'
 // on a flagged submission in Your Posts — editing it here and sending
 // creates a fresh, separate submission rather than mutating the old one, so
 // no update-in-place backend path was needed for that flow.
-export default function Spill({ draft, onDraftConsumed }) {
+export default function Spill({ draft, onDraftConsumed, onOpenGuidelines }) {
   const [text, setText] = useState(draft?.text ?? '')
   const [category, setCategory] = useState(draft?.category ?? 'other')
   const [error, setError] = useState(null)
   const [status, setStatus] = useState('idle') // idle | submitting | done
+  // Set from submit-post's response post.status — 'approved' when the
+  // server's moderate() found zero risk signals, 'pending' otherwise (a
+  // hard-rejected submission never reaches here at all — see
+  // submit-post/index.ts). Read from the actual response rather than
+  // assumed, so this stays correct if the server-side policy ever changes.
+  // Determines which done-state copy below is shown.
+  const [submittedStatus, setSubmittedStatus] = useState(null)
 
   useEffect(() => {
     if (!draft) return
@@ -52,17 +59,23 @@ export default function Spill({ draft, onDraftConsumed }) {
 
     if (data?.post?.id) addMyPostId(data.post.id)
 
+    setSubmittedStatus(data?.post?.status ?? null)
     setStatus('done')
     setText('')
   }
 
   if (status === 'done') {
+    const isPending = submittedStatus === 'pending'
     return (
       <div className="spill-tab">
         <h1 className="feed-title">Spill it<span className="dot">.</span></h1>
-        <p className="feed-meta">Sent 🎉</p>
+        <p className="feed-meta">{isPending ? 'Sent for review 🎉' : 'Published 🎉'}</p>
         <div className="spill-card spill-card-done">
-          <p className="muted-text">It's already live in the feed. Thanks for spilling.</p>
+          <p className="muted-text">
+            {isPending
+              ? "We'll review it before it goes live. Thanks for spilling."
+              : "It's live in the feed. Thanks for spilling."}
+          </p>
           <button className="btn-primary full" onClick={() => setStatus('idle')}>Spill another</button>
         </div>
       </div>
@@ -109,6 +122,12 @@ export default function Spill({ draft, onDraftConsumed }) {
         <button className="btn-primary full" type="submit" disabled={status === 'submitting'}>
           {status === 'submitting' ? 'Sending…' : 'Spill it'}
         </button>
+
+        {onOpenGuidelines && (
+          <button type="button" className="info-text-link small" onClick={onOpenGuidelines}>
+            Community Guidelines
+          </button>
+        )}
       </form>
     </div>
   )

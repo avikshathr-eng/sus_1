@@ -7,6 +7,13 @@
 // links) and built inline in LegalModal.jsx instead of as static copy.
 export const INFO_TITLE = 'About sus.'
 
+// Bump this whenever the substance of the Community rules changes (not for
+// typo fixes) — AgeGate/ageGate.js gates continued use on having accepted
+// THIS exact version, so a real policy change re-prompts every existing
+// user for a fresh affirmative agreement instead of silently grandfathering
+// them into rules they never saw.
+export const TERMS_VERSION = '2026-09-26'
+
 export const INFO_INTRO =
   "sus. is peer opinion for fun and validation, from people who'll never know who you are. " +
   "It is NOT professional advice — not legal, medical, financial, or psychological — and " +
@@ -54,12 +61,23 @@ export const INFO_SECTIONS = [
     heading: 'Community rules',
     defaultOpen: false,
     paragraphs: [
-      "Don't include real names, phone numbers, social handles, links, or anything else " +
-        'that could identify a real person.',
-      'No harassment, hate speech, threats, or targeting a specific individual. No sexual ' +
-        'or explicit content. No spam.',
-      'Breaking these rules can get a submission removed and, for repeat or serious ' +
-        'issues, your device blocked from submitting.',
+      'sus. has zero tolerance for objectionable content or abusive behavior. Posting any ' +
+        'of the following is not allowed, ever:',
+      '• Harassment, bullying, or targeting a specific individual',
+      '• Threats of violence or harm',
+      '• Hate speech or content that attacks people based on identity (race, religion, ' +
+        'gender, sexual orientation, nationality, disability, etc.)',
+      '• Sexually explicit content',
+      '• Illegal content or activity',
+      '• Doxxing — real names, phone numbers, addresses, social handles, links, or any ' +
+        'other information that could identify a real person',
+      '• Impersonation of another person',
+      '• Spam or scam content',
+      'We enforce this with automated screening on every submission plus human review of ' +
+        'anything reported. Violating these rules can get a submission removed and — for ' +
+        'repeat or serious issues — get your device permanently blocked from submitting, ' +
+        'voting, or using sus. at all. We act on reports of objectionable content or abusive ' +
+        'users within 24 hours.',
     ],
   },
   {

@@ -448,6 +448,8 @@ body {
 .my-post-status.status-rejected { background: rgba(0,0,0,0.06); color: var(--ink-soft); }
 .my-post-flag-notice { margin-top: 12px; display:flex; flex-direction:column; align-items:flex-start; gap:10px; }
 .my-post-flag-notice .btn-secondary { width:auto; padding:10px 18px; font-size:13px; }
+.my-post-delete-row { margin-top: 12px; display:flex; flex-wrap:wrap; gap:8px; }
+.my-post-delete-row .btn-secondary { width:auto; padding:10px 18px; font-size:13px; }
 
 /* ---------- Spill ---------- */
 .spill-tab {
@@ -473,6 +475,15 @@ body {
   box-shadow: 0 40px 70px -24px rgba(40,30,15,0.22), 0 8px 18px -8px rgba(40,30,15,0.1);
 }
 .spill-helper { margin: 0 0 10px; }
+.spill-card .info-text-link.small {
+  display: block;
+  text-align: center;
+  width: 100%;
+  margin-top: 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
 .spill-card-done { text-align:center; }
 .spill-card-done .btn-primary.full { margin-top: 24px; }
 .spill-tab textarea {

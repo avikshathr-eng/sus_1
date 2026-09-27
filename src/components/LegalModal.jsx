@@ -137,18 +137,63 @@ function LegalContactSection({ onOpenSection }) {
   )
 }
 
-export default function LegalModal({ onClose }) {
+// The single, unmistakable place everything Apple's Guideline 1.2 asks for
+// lives — reporting, blocking, hiding, the rules themselves, and how to
+// reach a human. Deliberately the first thing open when this sheet is
+// opened (see openIds default below), so a reviewer never has to hunt for
+// it across the other, more casually-named sections.
+function SafetySupportSection({ onOpenSection }) {
+  return (
+    <>
+      <p>
+        Every card has a flag icon (🚩) in its top corner — tap it to report the post, hide it
+        from your own feed, or block the person who posted it. Reporting a post also removes it
+        from your feed immediately.
+      </p>
+      <ul className="info-link-list">
+        <li><a className="info-text-link" href={`mailto:${SUPPORT_EMAIL}`}>Report inappropriate activity / contact support</a></li>
+        <li><button className="info-text-link" onClick={() => onOpenSection('community-rules')}>Community Guidelines</button></li>
+        <li><button className="info-text-link" onClick={() => onOpenSection('community-rules')}>Terms of Use</button></li>
+        <li><button className="info-text-link" onClick={() => onOpenSection('privacy')}>Privacy Policy</button></li>
+      </ul>
+      <p className="muted-text small">
+        We act on reports of objectionable content or abusive users within 24 hours — removing
+        the content and, for repeat or serious violations, permanently blocking the device
+        responsible. Reach us directly at{' '}
+        <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.
+      </p>
+    </>
+  )
+}
+
+// `initialSectionId` lets a caller open the sheet pre-scrolled to a specific
+// section — e.g. the "Community Guidelines" link on Spill jumps straight to
+// community-rules instead of making someone hunt for it in the accordion.
+// Optional; omitted everywhere else, which keeps the default "open at top"
+// behavior unchanged.
+export default function LegalModal({ onClose, initialSectionId }) {
   const scrollRef = useRef(null)
   const sectionRefs = useRef({})
-  const [openIds, setOpenIds] = useState(
-    () => new Set(INFO_SECTIONS.filter((s) => s.defaultOpen).map((s) => s.id))
-  )
+  const [openIds, setOpenIds] = useState(() => {
+    // 'safety-support' is open by default alongside 'how-it-works' — this is
+    // the section Apple reviewers need to find within seconds of opening the
+    // app, not something they should have to expand themselves first.
+    const ids = new Set(['safety-support', ...INFO_SECTIONS.filter((s) => s.defaultOpen).map((s) => s.id)])
+    if (initialSectionId) ids.add(initialSectionId)
+    return ids
+  })
 
-  // Always opens scrolled to top — this component is freshly mounted each
-  // time the sheet opens (App.jsx renders it conditionally), so a mount-time
-  // reset is enough; no need to track open/close transitions separately.
+  // This component is freshly mounted each time the sheet opens (App.jsx
+  // renders it conditionally), so a mount-time effect is enough — no need to
+  // track open/close transitions separately.
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = 0
+    if (!scrollRef.current) return
+    if (initialSectionId && sectionRefs.current[initialSectionId]) {
+      sectionRefs.current[initialSectionId].scrollIntoView({ block: 'start' })
+    } else {
+      scrollRef.current.scrollTop = 0
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function toggle(id) {
@@ -179,6 +224,12 @@ export default function LegalModal({ onClose }) {
 
         <div className="info-sheet-body" ref={scrollRef}>
           <p className="info-sheet-intro">{INFO_INTRO}</p>
+
+          <div ref={(el) => { sectionRefs.current['safety-support'] = el }}>
+            <AccordionItem id="safety-support" heading="Safety & Support" open={openIds.has('safety-support')} onToggle={toggle}>
+              <SafetySupportSection onOpenSection={openAndScrollTo} />
+            </AccordionItem>
+          </div>
 
           {INFO_SECTIONS.map((s) => (
             <div key={s.id} ref={(el) => { sectionRefs.current[s.id] = el }}>

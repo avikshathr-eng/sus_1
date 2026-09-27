@@ -461,6 +461,65 @@ export default function CardStack({ onCategoryChange, onVoteResultChange, dragX 
     }
   }
 
+  // Apple's Guideline 1.2 requires an immediate-removal mechanism, not just
+  // "excluded from future fetches" — Report and Hide (see ReportButton) both
+  // call this so the offending card disappears from the on-screen stack
+  // right away. Filtering it out of `posts` while leaving `index` unchanged
+  // is enough: the post being removed is always the one at `index` (only
+  // one SwipeCard is ever mounted, for `current`), so every later post
+  // shifts down to fill its place — the next card just appears, same as an
+  // ordinary advance.
+  //
+  // Block is deliberately NOT routed through this — see
+  // handleAuthorBlocked below for why a single-post filter isn't enough
+  // there.
+  function removePostFromFeed(postId) {
+    setPosts((prev) => prev.filter((p) => p.id !== postId))
+  }
+
+  // Blocking is different from Report/Hide in one important way: the rest
+  // of the already-prefetched buffer (everything from `index` onward, not
+  // yet shown) could itself contain other posts by the same author, and
+  // there is no client-side way to check that — get_feed() never sends a
+  // post's device_id to the client at all (see get_feed's own comment and
+  // hide_author()), which is exactly what keeps a blocked user's identity
+  // from ever being exposed. Filtering the local buffer by author is
+  // therefore impossible without adding a client-visible author id, which
+  // would undo that protection.
+  //
+  // The only server-safe fix is to throw away everything not yet shown and
+  // ask get_feed() again — it already excludes author_blocks server-side
+  // (see its WHERE clause), so a freshly-fetched batch is guaranteed clean.
+  // Synchronously truncating `posts` down to what's already been shown
+  // (posts.slice(0, index)) makes `current` immediately undefined, which
+  // falls into the exact same "Loading more…" branch the ordinary
+  // prefetch-lag case already renders (see the JSX below) — so there's
+  // nothing new to build for the loading state, and nothing stale is ever
+  // visible while the clean batch loads.
+  async function handleAuthorBlocked() {
+    const device_id = getDeviceId()
+    const alreadyShownIds = posts.slice(0, index).map((p) => p.id)
+
+    setPosts(posts.slice(0, index))
+    // Force the "Loading more…" branch rather than risk falling through to
+    // an "all caught up" empty state during the gap — corrected below once
+    // the real fetch result is known.
+    hasMoreRef.current = true
+    setHasMore(true)
+
+    const fresh = await fetchFeedBatch(alreadyShownIds, device_id)
+    if (fresh === null) {
+      console.error('post-block feed refresh failed')
+      return
+    }
+    hasMoreRef.current = fresh.length > 0
+    setHasMore(hasMoreRef.current)
+    if (fresh.length === 0) {
+      setSystemEmpty(!(await checkSystemHasAnyApprovedPosts()))
+    }
+    setPosts((prev) => [...prev, ...fresh])
+  }
+
   function handleRetryVote() {
     if (!reveal || reveal.status !== 'error') return
     const { id, postId, vote } = reveal
@@ -550,6 +609,8 @@ export default function CardStack({ onCategoryChange, onVoteResultChange, dragX 
             key={`q-${current.id}`}
             post={current}
             onSwiped={handleSwiped}
+            onPostRemoved={removePostFromFeed}
+            onPostBlocked={handleAuthorBlocked}
             locked={locked}
             skipEntrance={index === 0 && !hasSwipedRef.current}
             dragX={dragX}

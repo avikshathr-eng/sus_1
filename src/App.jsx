@@ -26,6 +26,9 @@ export default function App() {
   const [stage, setStage] = useState(getInitialStage())
   const [tab, setTab] = useState('feed')
   const [showLegal, setShowLegal] = useState(false)
+  // Which LegalModal section to open scrolled-to, e.g. 'community-rules'
+  // when opened via Spill's guidelines link rather than the header icon.
+  const [legalSectionId, setLegalSectionId] = useState(null)
   // The active card's category — CardStack reports this up as a plain
   // category id for the feed's resting background color.
   const [currentCategory, setCurrentCategory] = useState(null)
@@ -62,6 +65,11 @@ export default function App() {
     setTab('spill')
   }
 
+  function openLegal(sectionId) {
+    setLegalSectionId(sectionId ?? null)
+    setShowLegal(true)
+  }
+
   return (
     <div className="app">
       {tab === 'feed' && (
@@ -76,7 +84,12 @@ export default function App() {
       )}
 
       <div className="header">
-        <button className="icon-btn-circle" onClick={() => setShowLegal(true)} aria-label="How it works" title="How it works">
+        <button
+          className="icon-btn-circle"
+          onClick={() => openLegal()}
+          aria-label="How it works, Safety & Support"
+          title="How it works, Safety & Support"
+        >
           <Info size={18} />
         </button>
       </div>
@@ -86,12 +99,18 @@ export default function App() {
       )}
       {tab === 'crowd' && <CrowdPicks onEditPost={openSpillDraft} />}
       {tab === 'spill' && (
-        <Spill draft={spillDraft} onDraftConsumed={() => setSpillDraft(null)} />
+        <Spill
+          draft={spillDraft}
+          onDraftConsumed={() => setSpillDraft(null)}
+          onOpenGuidelines={() => openLegal('community-rules')}
+        />
       )}
 
       <BottomNav active={tab} onChange={setTab} />
 
-      {showLegal && <LegalModal onClose={() => setShowLegal(false)} />}
+      {showLegal && (
+        <LegalModal initialSectionId={legalSectionId} onClose={() => setShowLegal(false)} />
+      )}
     </div>
   )
 }

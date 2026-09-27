@@ -3,6 +3,13 @@
 // Same platform-issue bypass as record-vote (see that function's comment
 // for the full explanation) — routes reports inserts through the
 // service-role key instead of the currently-broken anon-key REST path.
+//
+// Also the enforcement point for the reports_post_device_uniq constraint
+// (see supabase/migrations/20260827000001_report_lifecycle.sql) — one open
+// report per (post, device) to stop a single device from spamming reports
+// on the same post. A conflict here just means this device already
+// reported this post, which is a success from the caller's perspective
+// (ReportButton always shows "Thanks, we'll review it"), not an error.
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
@@ -35,7 +42,10 @@ Deno.serve(async (req) => {
       .from('reports')
       .insert({ post_id, device_id: device_id.slice(0, 128), reason: reason ?? null })
 
-    if (error) throw error
+    // 23505 = unique_violation on reports_post_device_uniq — this device
+    // already reported this post. Treat as idempotent success rather than
+    // an error the client would need to handle differently.
+    if (error && error.code !== '23505') throw error
 
     return new Response(JSON.stringify({ ok: true }), {
       status: 200,
