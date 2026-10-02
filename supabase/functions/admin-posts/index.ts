@@ -127,6 +127,25 @@ Deno.serve(async (req) => {
       const { error } = await supabaseAdmin.from('posts').update(update).eq('id', post_id)
       if (error) throw error
 
+      // Closes the "rejecting a post doesn't close its reports" gap found in
+      // the Guideline 1.2 production audit: 'approved' and 'rejected' are
+      // both TERMINAL moderation decisions (the content has been looked at
+      // and a final call made), so any still-open report on this post has
+      // just been actioned by this very update and should close with it.
+      // 'pending' and 'flagged' are deliberately excluded — neither is a
+      // final decision, so a report on a flagged/pending post should stay
+      // open until the post reaches an actual terminal state. This does NOT
+      // retroactively touch any report that was already open before this
+      // call — only ones closed out by THIS status change going forward.
+      if (status === 'approved' || status === 'rejected') {
+        const { error: resolveOnStatusError } = await supabaseAdmin
+          .from('reports')
+          .update({ status: 'resolved', resolved_at: new Date().toISOString() })
+          .eq('post_id', post_id)
+          .eq('status', 'open')
+        if (resolveOnStatusError) throw resolveOnStatusError
+      }
+
       return new Response(JSON.stringify({ ok: true }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

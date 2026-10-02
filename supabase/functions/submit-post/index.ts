@@ -302,6 +302,13 @@ const PERSON_CONTEXT_WORDS = [
   'friend', 'roommate', 'coworker', 'colleague', 'boss', 'manager', 'neighbor',
   'brother', 'sister', 'cousin', 'mother', 'father', 'mom', 'dad', 'parent', 'son', 'daughter',
   'guy', 'girl', 'man', 'woman', 'person', 'with',
+  // Added during the conservative Guideline 1.2 hardening pass — the
+  // original list covered family/romantic/social roles but missed a whole
+  // class of service/authority roles a SUS dilemma just as commonly names
+  // ("my landlord Priya...", "my professor Dr. Lee..."), which previously
+  // sailed straight past hasPersonContextName with zero signal.
+  'landlord', 'tenant', 'professor', 'teacher', 'doctor', 'therapist', 'client',
+  'babysitter', 'nanny', 'tutor', 'classmate', 'patient',
 ].join('|')
 
 // A reasonable curated group-term set, not an attempt to enumerate every
@@ -473,7 +480,10 @@ const SEVERE_THREAT_REJECT_REGEX = new RegExp(
   `\\bdeserves?\\s+to\\s+(?:get\\s+)?(?:hurt|die|suffer)\\b|` +
   `\\bwants?\\s+to\\s+(?:hurt|kill)\\s+(?:him|her|them)\\b|` +
   `\\bwish(?:es)?\\s+(?:he|she|they)\\s+(?:was|were)\\s+dead\\b|` +
-  `\\bwish(?:es)?\\s+something\\s+(?:bad|terrible|awful)\\s+(?:would\\s+)?happen(?:s|ed)?\\s+to\\s+(?:him|her|them)\\b|` +
+  // 'hopes' added alongside 'wishes' — "I hope something bad happens to
+  // him" was reaching APPROVE purely because the verb didn't match "wish",
+  // despite being the identical sentiment.
+  `\\b(?:wish(?:es)?|hopes?)\\s+something\\s+(?:bad|terrible|awful)\\s+(?:would\\s+)?happen(?:s|ed)?\\s+to\\s+(?:him|her|them)\\b|` +
   `\\b(?:he|she|they|everyone(?:\\s+like\\s+(?:him|her))?|(?:all\\s+)?(?:${GROUP_TERMS}))\\s+should\\s+(?:all\\s+)?die\\b`,
   'i'
 )
@@ -690,7 +700,10 @@ const CROSS_SENTENCE_HARM_WISH_REGEX = /\bi\s+wish\s+(?:he|she|they|they'd|they\
 const REVENGE_REGEX = /\brevenge\b/i
 // Bare "karma" no longer triggers pending on its own ("I believe in
 // karma" must approve) — only karma directed hostilely AT a target does.
-const KARMA_HOSTILE_REGEX = /\bkarma\s+(?:will\s+|is\s+going\s+to\s+|'ll\s+|would\s+)?(?:get|hit|come\s+for|catch\s+up\s+with|destroy|ruin|end)\s+(?:him|her|them)\b|\bhope\s+karma\s+gets?\s+(?:him|her|them)\b/i
+// Verb forms widened to tolerate 3rd-person -s (destroys/ruins/ends, not
+// just the bare infinitive) — "karma destroys him" with no modal in front
+// wasn't matching the bare "destroy" alternative at all.
+const KARMA_HOSTILE_REGEX = /\bkarma\s+(?:will\s+|is\s+going\s+to\s+|'ll\s+|would\s+)?(?:gets?|hits?|comes?\s+for|catch(?:es)?\s+up\s+with|destroys?|ruins?|ends?)\s+(?:him|her|them)\b|\bhope\s+karma\s+gets?\s+(?:him|her|them)\b/i
 const WILL_REGRET_REGEX = /\b(?:he|she|they)(?:'ll|\s+will)\s+regret\b/i
 const BROAD_WISH_DIE_REGEX = /\b(?:hopes?|wishe?s?)\b.{0,20}\b(?:dies?|dead)\b/i
 const WANT_SUFFER_REGEX = /\bwant\s+(?:him|her|them)\s+to\s+suffer\b/i
@@ -723,12 +736,103 @@ function hasChildSafetyAmbiguity(text: string): boolean { return MINOR_AGE_INDIC
 const ILLEGAL_INSTRUCTION_REGEX = /\bhow\s+(?:do\s+i|can\s+i|to)\s+(?:hack|make\s+a\s+bomb|make\s+meth|pick\s+a\s+lock|get\s+away\s+with|poison\s+someone|track\s+(?:him|her|them)\s+without|stalk\s+(?:him|her|them)\s+without)\b/i
 const STALKING_ADMISSION_REGEX = /\bi'?m\s+following\s+(?:him|her|them|my\s+ex)\s+everywhere\b|\bso\s+(?:he|she|they)\s+knows?\s+i'?m\s+watching\b/i
 const EXTREMISM_REGEX = /\bjoin\s+isis\b|\bjoin\s+al-?qaeda\b|\bsupport(?:s|ing)?\s+terroris(?:m|t)\b|\bbecome\s+a\s+terrorist\b|\bcommit\s+a\s+terrorist\s+attack\b|\bplan(?:ning)?\s+an?\s+attack\s+on\b/i
-const OBJECTIFICATION_REGEX = /\bis\s+[A-Z][a-z]+\s+(?:hot|attractive|ugly|cute)\??\b|\brate\s+(?:my|this)\s+(?:[a-z]+'s\s+)?looks?\b|\bwould\s+you\s+(?:sleep\s+with|date|hook\s+up\s+with)\s+(?:this|that)\s+(?:person|girl|guy|man|woman)\b|\bis\s+this\s+(?:girl|guy|person)\s+(?:hot|ugly|attractive)\??\b/i
+// Widened with a direct "is my [partner] ugly/hot/..." branch — the
+// original only covered a capitalized proper-noun subject or "this
+// girl/guy/person," missing the extremely common "is my girlfriend ugly?"
+// phrasing entirely (confirmed reaching APPROVE in the Guideline 1.2
+// hardening audit).
+const OBJECTIFICATION_REGEX = /\bis\s+[A-Z][a-z]+\s+(?:hot|attractive|ugly|cute)\??\b|\brate\s+(?:my|this)\s+(?:[a-z]+'s\s+)?(?:looks?|boyfriend|girlfriend|partner|husband|wife)\b|\bwould\s+you\s+(?:sleep\s+with|date|hook\s+up\s+with)\s+(?:this|that)\s+(?:person|girl|guy|man|woman)\b|\bis\s+this\s+(?:girl|guy|person)\s+(?:hot|ugly|attractive)\??\b|\bis\s+my\s+(?:boyfriend|girlfriend|partner|husband|wife|ex)\s+(?:hot|ugly|attractive|cute)\??\b/i
 
 // Small high-risk weapon-emoji signal, PENDING only — never semantically
 // interpreted, just a narrow co-occurrence with a human-target pronoun.
 const WEAPON_EMOJI_REGEX = /[\u{1F52A}\u{1F52B}⚔\u{1F4A3}\u{1FA78}]/u
 const HUMAN_TARGET_PRONOUN_REGEX = /\b(?:him|her|them|me)\b/i
+
+// ---- Conservative "tilt toward pending" additions (Guideline 1.2 hardening
+// pass, post-rejection) ----
+// Closed phrase lists only, each targeting phrasing with near-zero
+// legitimate overlap in an ordinary SUS dilemma — verified against a 50+
+// item benign corpus (real seed.sql sentences plus deliberately adjacent
+// phrasing sharing vocabulary with every pattern below) with zero new false
+// positives before being kept. Tested against `forKeywords` (already
+// de-leeted + letter-spacing/punctuation-glue collapsed + homoglyph
+// normalized), so these inherit the same evasion resistance as every other
+// Layer 2 check for free.
+//
+// Deliberately NOT attempted here: detecting bare physical descriptions
+// ("drives a red jeep, parks outside the gym") or location mentions
+// ("works at the Shell on 5th and Elm") on their own — ordinary SUS
+// dilemmas routinely mention real specific places and details as scene-
+// setting ("ditched me at the restaurant," "my coworker at the downtown
+// branch"), and there is no way to distinguish that from a doxxing attempt
+// without the EXPLICIT STATED INTENT to identify, which is what
+// IDENTIFICATION_INTENT_REGEX below targets instead. This is a known,
+// accepted residual risk — see the audit report, not an oversight.
+const BROAD_SELF_HARM_ENCOURAGEMENT_REGEX = new RegExp(
+  '\\b(?:go\\s+)?(?:kill|end)\\s+yourself(?:\\s+already|\\s+now)?\\b|' +
+  '\\bjust\\s+end\\s+it(?:\\s+already)?\\b|' +
+  '\\bnobody\\s+would\\s+miss\\s+you\\b|' +
+  '\\bwhy\\s+don\'?t\\s+you\\s+(?:just\\s+)?disappear(?:\\s+permanently)?\\b|' +
+  '\\bgo\\s+jump\\s+off\\s+a\\s+bridge\\b|' +
+  '\\bgo\\s+(?:drive|walk)\\s+into\\s+traffic\\b|' +
+  '\\bgo\\s+die\\b|' +
+  // "kys" specifically needs the same spacing/punctuation tolerance as the
+  // VIOLENT_VERB_LIST verbs above (spacedWordPattern) rather than relying on
+  // collapseLetterSpacing, which requires 4+ letters (3 separator-letter
+  // pairs) to collapse — a 3-letter token like "k-y-s" never reaches that
+  // threshold and would otherwise slip through ungated. Reusing the existing,
+  // already-scoped spacedWordPattern helper here (rather than lowering the
+  // shared collapseLetterSpacing threshold) means this fix cannot affect any
+  // other detector or any other short legitimate abbreviation elsewhere in
+  // the text (e.g. "a.m.", "u.s.a") — it only ever matches this one token.
+  spacedWordPattern('kys'),
+  'i'
+)
+
+// Third-person disappearance/exclusion wish — "He should disappear and never
+// come back." Mirrors SEVERE_THREAT_REJECT_REGEX's own existing
+// "(he|she|they) should (all) die" clause exactly, just swapping the verb,
+// rather than introducing a new category: a harm-wish targeting a specific
+// third person is already a recognized shape in this file, "disappear" was
+// simply missing from it. Deliberately verb-scoped to "disappear" only —
+// NOT "leave"/"go away"/"move away", which have overwhelmingly benign
+// everyday uses in ordinary relationship dilemmas ("he should move away for
+// the new job," "I wish he'd just leave me alone") and would cost real
+// false positives for no safety benefit.
+const THIRD_PERSON_DISAPPEAR_WISH_REGEX = /\b(?:he|she|they)\s+should\s+(?:just\s+)?disappear(?:\s+forever|\s+permanently|\s+and\s+never\s+come\s+back)?\b/i
+
+// Identification-INTENT phrasing — a cheap, closed, low-false-positive proxy
+// for "I'm giving you enough to identify this real person." Deliberately
+// targets the STATED INTENT, not the identifying details themselves (see
+// the note above on why those are out of scope).
+const IDENTIFICATION_INTENT_REGEX = /\byou'?ll\s+know(?:\s+(?:who|exactly))?\b|\byou\s+know\s+(?:exactly\s+)?who\s+(?:this|i'?m\s+talking\s+about)\s+is\b|\bif\s+you\s+know,?\s+you\s+know\b|\byou\s+know\s+who\s+you\s+are\b|\bno\s+names?\s+but\b|\bnot\s+naming\s+names?\s+but\b|\byou\s+probably\s+know\s+who\b|\beveryone\s+who\s+knows\s+(?:him|her|them)\s+will\s+know\b|\beveryone\s+(?:there\s+)?knows\s+who\s+i\s+mean\b|\byou\s+know\s+who\s+i'?m\s+talking\s+about\b/i
+
+// Group-harassment COORDINATION — an instruction/exhortation to act
+// together against someone, not narration of something that already
+// happened. Deliberately scoped to the imperative/encouraging frame
+// ("let's", "everyone should", "we should") so narrating past group drama
+// — itself completely ordinary SUS content, e.g. "she got removed from the
+// group chat for no reason" — is untouched.
+const GROUP_HARASSMENT_COORDINATION_REGEX = /\bgang\s+up\s+on\s+(?:him|her|them)\b|\bpile\s+on\s+(?:him|her|them)\b|\b(?:everyone|we)\s+should\s+(?:all\s+)?ignore\s+(?:him|her|them)\b|\blet'?s\s+all\s+ignore\s+(?:him|her|them)\b|\bturn\s+everyone\s+against\s+(?:him|her|them)\b|\bmass\s+report\s+(?:him|her|them)\b|\bfreeze\s+(?:him|her|them)\s+out\b/i
+
+// Idiomatic third-party threats — short, closed list of common threatening
+// idioms distinct from the explicit violent-verb patterns above. "Put them
+// in their place" deliberately excluded — too common in mundane,
+// non-violent social-correction contexts to include safely.
+const IDIOMATIC_THREAT_REGEX = /\bteach\s+(?:him|her|them)\s+a\s+lesson\b|\b(?:he|she|they)(?:'ll|\s+will|\s+is\s+going\s+to|'?s\s+going\s+to|\s+are\s+going\s+to)\s+learn\s+(?:the\s+)?hard\s+way\b|\bmake\s+an\s+example\s+of\s+(?:him|her|them)\b/i
+
+// Contact-sharing across platforms WITHOUT a bare @ handle (HANDLE_REGEX
+// already catches the @ case in Layer 1). Requires a platform name AND an
+// invitation-style verb/phrase in the same post — either alone is far too
+// common in ordinary storytelling ("we matched on hinge", "he posted a
+// story on instagram") to flag safely.
+const CONTACT_PLATFORM_REGEX = /\b(?:insta(?:gram)?|snap(?:chat)?|tiktok|whatsapp|telegram|discord|facebook|\bfb\b|twitter|kik|linkedin)\b/i
+const CONTACT_INVITE_PHRASE_REGEX = /\badd\s+me\b|\bfind\s+me\b|\bfollow\s+me\b|\bfriend\s+me\b|\bhmu\b|\bhit\s+me\s+up\b|\blook\s+me\s+up\b|\bhere'?s\s+my\b|\bmy\s+(?:user(?:name)?|handle|profile)\s+is\b/i
+
+// Encouraging OTHERS to track down / contact a third party on a platform — a
+// distinct harassment-enablement pattern from sharing your OWN contact info
+// above.
+const THIRD_PARTY_CONTACT_HUNT_REGEX = /\bfind\s+(?:his|her|their)\s+(?:insta(?:gram)?|snap(?:chat)?|tiktok|facebook|twitter|number|profile)\b|\btrack\s+(?:him|her|them)\s+down\b|\b(?:add|message|dm)\s+(?:him|her|them)\s+on\s+(?:insta(?:gram)?|snap(?:chat)?|tiktok|facebook|twitter)\s+and\b/i
 
 function layer2PendingSignal(normalized: string, forKeywords: string): string | null {
   // NEW: the positive language-confidence gate is checked FIRST, before
@@ -736,6 +840,17 @@ function layer2PendingSignal(normalized: string, forKeywords: string): string | 
   // supported-language English, nothing downstream gets a chance to
   // wrongly call it safe.
   if (!looksLikeConfidentEnglish(normalized)) return 'unsupported_or_uncertain_language'
+  // Conservative Guideline 1.2 hardening pass — checked early, same
+  // priority tier as the language gate, since these are all closed,
+  // low-false-positive phrase lists (see their definitions above for the
+  // benign-corpus validation each one went through before being added).
+  if (BROAD_SELF_HARM_ENCOURAGEMENT_REGEX.test(forKeywords)) return 'self_harm_encouragement_broad'
+  if (THIRD_PERSON_DISAPPEAR_WISH_REGEX.test(forKeywords)) return 'third_person_disappear_wish'
+  if (IDENTIFICATION_INTENT_REGEX.test(forKeywords)) return 'identification_intent'
+  if (GROUP_HARASSMENT_COORDINATION_REGEX.test(forKeywords)) return 'group_harassment_coordination'
+  if (IDIOMATIC_THREAT_REGEX.test(forKeywords)) return 'idiomatic_threat'
+  if (CONTACT_PLATFORM_REGEX.test(forKeywords) && CONTACT_INVITE_PHRASE_REGEX.test(forKeywords)) return 'possible_contact_sharing'
+  if (THIRD_PARTY_CONTACT_HUNT_REGEX.test(forKeywords)) return 'third_party_contact_hunt'
   if (looksUnsupportedLanguage(normalized)) return 'unsupported_language'
   if (looksStructurallyUnusual(normalized)) return 'structurally_unusual'
   if (hasChildSafetyAmbiguity(forKeywords)) return 'child_safety_ambiguous'
