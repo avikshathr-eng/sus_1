@@ -1,21 +1,22 @@
 -- Seed data for SUS MVP.
 -- Run in Supabase SQL editor AFTER schema.sql.
--- 656 starter cards (56 hand-written + a 100-card batch added 2026-07-28 +
--- a 500-card batch added 2026-10-02 — see supabase/seed_batch_2026-10-02.sql
--- for that batch on its own, applied directly against production to refill
--- the pool once real devices had voted through most of the earlier 184
--- approved posts), status='approved' so they're live immediately. Five
--- generic themes (relationship/friendship/career/family/other), not
--- dating-exclusive. Keep every card under 180 characters (see
--- MAX_CONFESSION_LENGTH in src/lib/moderation.js) to match the UI.
+-- 943 starter cards (56 hand-written + a 100-card batch added 2026-07-28 +
+-- a 500-card batch added 2026-10-02 + a 287-card curated batch added
+-- 2026-10-02 — see supabase/seed_batch_2026-10-02.sql and
+-- supabase/seed_batch_2026-10-02_curated.sql for those batches on their own,
+-- both applied directly against production), status='approved' so they're
+-- live immediately. Five generic themes (relationship/friendship/career/
+-- family/other), not dating-exclusive. Keep every card under 180 characters
+-- (see MAX_CONFESSION_LENGTH in src/lib/moderation.js) to match the UI.
 --
--- The 2026-10-02 batch is original content written in the voice of the
+-- Both 2026-10-02 batches are original content written in the voice of the
 -- existing cards (short, anonymized, situation-not-person) — not scraped
--- from Reddit or anywhere else. Every single line was run through the live
--- submit-post moderation function (supabase/functions/submit-post/index.ts)
--- before insertion, since a direct seed insert bypasses that Edge Function
--- entirely; all 500 came back 'approve' with zero edits needed to the
--- moderation code itself.
+-- from Reddit or anywhere else. Every single line in both was run through
+-- the live submit-post moderation function (supabase/functions/submit-post/
+-- index.ts) before insertion, since a direct seed insert bypasses that Edge
+-- Function entirely; the moderation code itself was never modified to
+-- accommodate either batch — anything that didn't cleanly pass was held
+-- back instead (see the curated batch's own file header for specifics).
 --
 -- To add another batch: put the new questions in a .txt/.csv/.json file and
 -- run `node scripts/import-seed-cards.mjs <file>` — it validates, dedupes
