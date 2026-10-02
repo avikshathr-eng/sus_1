@@ -1,10 +1,21 @@
 -- Seed data for SUS MVP.
 -- Run in Supabase SQL editor AFTER schema.sql.
--- 156 starter cards (56 hand-written + a 100-card batch added 2026-07-28),
--- status='approved' so they're live immediately. Five generic themes
--- (relationship/friendship/career/family/other), not dating-exclusive.
--- Keep every card under 180 characters (see MAX_CONFESSION_LENGTH in
--- src/lib/moderation.js) to match the UI.
+-- 656 starter cards (56 hand-written + a 100-card batch added 2026-07-28 +
+-- a 500-card batch added 2026-10-02 — see supabase/seed_batch_2026-10-02.sql
+-- for that batch on its own, applied directly against production to refill
+-- the pool once real devices had voted through most of the earlier 184
+-- approved posts), status='approved' so they're live immediately. Five
+-- generic themes (relationship/friendship/career/family/other), not
+-- dating-exclusive. Keep every card under 180 characters (see
+-- MAX_CONFESSION_LENGTH in src/lib/moderation.js) to match the UI.
+--
+-- The 2026-10-02 batch is original content written in the voice of the
+-- existing cards (short, anonymized, situation-not-person) — not scraped
+-- from Reddit or anywhere else. Every single line was run through the live
+-- submit-post moderation function (supabase/functions/submit-post/index.ts)
+-- before insertion, since a direct seed insert bypasses that Edge Function
+-- entirely; all 500 came back 'approve' with zero edits needed to the
+-- moderation code itself.
 --
 -- To add another batch: put the new questions in a .txt/.csv/.json file and
 -- run `node scripts/import-seed-cards.mjs <file>` — it validates, dedupes
