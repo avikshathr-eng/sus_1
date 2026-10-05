@@ -24,20 +24,19 @@ export default function AgeGate({ onConfirmed, onUnder18 }) {
       <SusWordmark />
       <h1>You need to be 18+</h1>
       <p className="muted-text">
-        sus. deals with real talk about relationships, money, and family — some of it
-        can be heavy. It's peer opinion for fun, not professional advice.
+        <strong>Keep SUS anonymous &amp; safe.</strong> Don't include real names or
+        identifying details, contact or social information, threats or harassment, hate
+        speech, sexual content involving minors, or encouragement of self-harm.
       </p>
 
       <label className="tos-checkbox">
         <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
         <span>
-          I'm 18 or older, and I have read and agree to the{' '}
+          I'm 18 or older and agree to follow the{' '}
           <button type="button" className="link-inline" onClick={() => setShowLegal(true)}>
-            Terms of Use &amp; Community Guidelines
+            Community Guidelines
           </button>
-          . I understand sus. has zero tolerance for objectionable content, harassment, or
-          abusive users, and that sus. may remove content, suspend, or permanently ban anyone
-          who violates these rules.
+          .
         </span>
       </label>
 
@@ -46,7 +45,7 @@ export default function AgeGate({ onConfirmed, onUnder18 }) {
       </button>
       <button className="btn-secondary full" onClick={onUnder18}>I'm under 18</button>
 
-      {showLegal && <LegalModal onClose={() => setShowLegal(false)} />}
+      {showLegal && <LegalModal initialSectionId="community-rules" onClose={() => setShowLegal(false)} />}
     </div>
   )
 }
