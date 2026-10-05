@@ -4,7 +4,7 @@ import { invokeFunction } from '../lib/invokeFunction'
 import { DAILY_LIMIT, getSwipesLeft, recordSwipe } from '../lib/dailyLimit'
 import { FEED_BATCH_SIZE } from '../lib/feedDistribution'
 import { getHiddenPostIds } from '../lib/hiddenContent'
-import { diversifyCategories } from '../lib/categoryDiversity'
+import { diversifyCategories, spaceOutNearDuplicates } from '../lib/categoryDiversity'
 import { SAFETY_BANNER } from '../lib/safetyResources'
 import { usePrefersReducedMotion } from '../lib/useReducedMotion'
 import { calculateDisplayedVoteSplit } from '../lib/voteSplit'
@@ -157,7 +157,10 @@ export default function CardStack({ onCategoryChange, onVoteResultChange, dragX 
       p_hidden_post_ids: getHiddenPostIds(),
     })
     if (error) return null
-    return diversifyCategories(data || [])
+    // Order matters: near-duplicate spacing first, category-balancing last
+    // — see spaceOutNearDuplicates' own comment in categoryDiversity.js for
+    // why swapping this order reintroduces category runs.
+    return diversifyCategories(spaceOutNearDuplicates(data || []), 2)
   }
 
   // get_feed() only ever answers "what's eligible for THIS device" — a
